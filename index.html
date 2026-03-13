@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTC Accumulator Strategy Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        mono: ['JetBrains Mono', 'monospace'],
+        sans: ['Instrument Sans', 'sans-serif'],
+      },
+      colors: {
+        surface: { 950: '#08090c', 900: '#0d0f14', 800: '#13161d', 700: '#1a1e27', 600: '#242833' },
+        accent: { green: '#00e89d', red: '#ff3b5c', amber: '#ffb224', blue: '#3b82f6', cyan: '#06d6e0' },
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { scrollbar-width: thin; scrollbar-color: #242833 #0d0f14; }
+  body { background: #08090c; font-family: 'Instrument Sans', sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* Glow effects */
+  .glow-green { box-shadow: 0 0 20px rgba(0,232,157,0.08), inset 0 1px 0 rgba(0,232,157,0.1); }
+  .glow-red { box-shadow: 0 0 20px rgba(255,59,92,0.08), inset 0 1px 0 rgba(255,59,92,0.1); }
+  .glow-amber { box-shadow: 0 0 20px rgba(255,178,36,0.08), inset 0 1px 0 rgba(255,178,36,0.1); }
+  .glow-blue { box-shadow: 0 0 20px rgba(59,130,246,0.08), inset 0 1px 0 rgba(59,130,246,0.1); }
+
+  .card {
+    background: linear-gradient(135deg, #0d0f14 0%, #13161d 100%);
+    border: 1px solid #1a1e2780;
+    border-radius: 12px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .card:hover { border-color: #242833; box-shadow: 0 4px 24px rgba(0,0,0,0.3); }
+
+  .input-field {
+    background: #0d0f14;
+    border: 1px solid #242833;
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 8px 12px;
+    transition: border-color 0.2s;
+    outline: none;
+    width: 100%;
+  }
+  .input-field:focus { border-color: #06d6e0; }
+
+  select.input-field { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 8px center; background-repeat: no-repeat; background-size: 20px; padding-right: 32px; }
+
+  .toggle-btn {
+    padding: 6px 16px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    transition: all 0.2s; cursor: pointer; border: 1px solid transparent;
+    font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .toggle-btn.active { background: #06d6e015; border-color: #06d6e0; color: #06d6e0; }
+  .toggle-btn:not(.active) { background: transparent; border-color: #242833; color: #6b7280; }
+  .toggle-btn:not(.active):hover { border-color: #374151; color: #9ca3af; }
+
+  .stat-value { font-family: 'JetBrains Mono', monospace; font-weight: 600; letter-spacing: -0.02em; }
+  .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #6b7280; font-weight: 500; }
+
+  .price-ticker {
+    display: inline-flex; align-items: center; gap: 6px;
+    animation: fadeInSlide 0.6s ease-out;
+  }
+
+  @keyframes fadeInSlide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #00e89d; animation: pulse-dot 2s infinite; }
+
+  .scenario-tag {
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px;
+    border-radius: 20px; font-size: 11px; font-weight: 600;
+    font-family: 'JetBrains Mono', monospace; letter-spacing: 0.03em;
+  }
+
+  .range-slider { -webkit-appearance: none; width: 100%; height: 4px; border-radius: 2px; background: #242833; outline: none; }
+  .range-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #06d6e0; cursor: pointer; border: 2px solid #08090c; }
+  .range-slider::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #06d6e0; cursor: pointer; border: 2px solid #08090c; }
+
+  .table-row { transition: background 0.15s; }
+  .table-row:hover { background: #13161d; }
+
+  .badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em; }
+
+  /* Noise overlay */
+  .noise::before {
+    content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 9999; opacity: 0.4;
+  }
+
+  .recommendation-card {
+    background: linear-gradient(135deg, #0d0f14 0%, #13161d 50%, #0d0f14 100%);
+    border: 1px solid #06d6e030;
+    position: relative; overflow: hidden;
+  }
+  .recommendation-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, #06d6e0, transparent);
+  }
+</style>
+</head>
+<body class="noise text-gray-300 min-h-screen">
+
+<!-- Header -->
+<header class="sticky top-0 z-50 border-b border-surface-700/50 backdrop-blur-xl bg-surface-950/80">
+  <div class="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <div class="text-lg font-bold tracking-tight text-white font-mono">BTC<span class="text-accent-cyan">/</span>ACC</div>
+      <div class="h-4 w-px bg-surface-600"></div>
+      <span class="text-xs text-gray-500 font-mono uppercase tracking-widest">Metalpha Strategy Engine</span>
+    </div>
+    <div class="flex items-center gap-6">
+      <div class="price-ticker">
+        <div class="live-dot"></div>
+        <span class="text-xs text-gray-500 font-mono">BTC/USD</span>
+        <span id="header-price" class="text-sm font-mono font-bold text-white">--</span>
+        <span id="header-change" class="text-xs font-mono">--</span>
+      </div>
+      <div class="text-xs text-gray-600 font-mono" id="last-updated">--</div>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
+
+<!-- Section 1: Portfolio Overview -->
+<section id="portfolio-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">Portfolio Overview</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+  </div>
+
+  <!-- Spot Price Control -->
+  <div class="card p-4 mb-4">
+    <div class="flex items-center gap-6 flex-wrap">
+      <div class="flex items-center gap-3">
+        <span class="stat-label">Spot Price Override</span>
+        <input type="number" id="spot-input" class="input-field w-36" placeholder="Auto">
+        <button onclick="fetchLivePrice()" class="toggle-btn active text-xs" style="padding:4px 12px">REFRESH LIVE</button>
+      </div>
+      <div class="flex-1 min-w-[200px]">
+        <input type="range" id="spot-slider" class="range-slider" min="30000" max="150000" step="100">
+      </div>
+      <div class="font-mono text-sm text-gray-500" id="spot-slider-val">$69,000</div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+    <div class="card p-4">
+      <div class="stat-label mb-2">BTC Holdings</div>
+      <div class="stat-value text-xl text-white">14.0000</div>
+      <div class="text-xs text-gray-500 font-mono mt-1">@ $98,000 avg</div>
+    </div>
+    <div class="card p-4">
+      <div class="stat-label mb-2">Cost Basis</div>
+      <div class="stat-value text-xl text-white" id="cost-basis">$1,372,000</div>
+    </div>
+    <div class="card p-4" id="current-value-card">
+      <div class="stat-label mb-2">Current Value</div>
+      <div class="stat-value text-xl" id="current-value">--</div>
+    </div>
+    <div class="card p-4" id="pnl-card">
+      <div class="stat-label mb-2">Unrealized P&L</div>
+      <div class="stat-value text-xl" id="unrealized-pnl">--</div>
+      <div class="text-xs font-mono mt-1" id="unrealized-pnl-pct">--</div>
+    </div>
+    <div class="card p-4">
+      <div class="stat-label mb-2">Cash Available</div>
+      <div class="stat-value text-xl text-white">$2,500,000</div>
+    </div>
+    <div class="card p-4">
+      <div class="stat-label mb-2">Total Portfolio</div>
+      <div class="stat-value text-xl text-white" id="total-portfolio">--</div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2: Accumulator Calculator -->
+<section id="accumulator-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">Accumulator Calculator</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Controls -->
+    <div class="card p-5 space-y-4">
+      <div class="text-xs font-mono text-accent-cyan uppercase tracking-widest font-bold mb-3">Configuration</div>
+
+      <!-- Variant Toggle -->
+      <div>
+        <div class="stat-label mb-2">Product Variant</div>
+        <div class="flex gap-2">
+          <button class="toggle-btn active" id="btn-standard" onclick="setVariant('standard')">Standard</button>
+          <button class="toggle-btn" id="btn-guaranteed" onclick="setVariant('guaranteed')">Guaranteed (4W)</button>
+          <button class="toggle-btn" id="btn-guaranteed26w" onclick="setVariant('guaranteed26w')">Guaranteed (26W)</button>
+        </div>
+      </div>
+
+      <!-- Term Selection -->
+      <div>
+        <div class="stat-label mb-2">Term Selection</div>
+        <select id="term-select" class="input-field" onchange="onTermChange()"></select>
+      </div>
+
+      <!-- Editable Parameters -->
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <div class="stat-label mb-1">Strike %</div>
+          <input type="number" step="0.01" id="edit-strike-pct" class="input-field text-xs" onchange="onParamEdit()">
+        </div>
+        <div>
+          <div class="stat-label mb-1">KO %</div>
+          <input type="number" step="1" id="edit-ko-pct" class="input-field text-xs" onchange="onParamEdit()">
+        </div>
+        <div>
+          <div class="stat-label mb-1">Margin %</div>
+          <input type="number" step="1" id="edit-margin-pct" class="input-field text-xs" onchange="onParamEdit()">
+        </div>
+      </div>
+
+      <!-- Notional -->
+      <div>
+        <div class="stat-label mb-2">Notional (USD)</div>
+        <input type="number" id="notional-input" class="input-field" value="1000000" step="50000" onchange="updateAll()">
+        <input type="range" id="notional-slider" class="range-slider mt-2" min="100000" max="2500000" step="50000" value="1000000" oninput="document.getElementById('notional-input').value=this.value;updateAll()">
+      </div>
+
+      <!-- Observation Frequency -->
+      <div>
+        <div class="stat-label mb-2">Observation Frequency</div>
+        <div class="flex gap-2">
+          <button class="toggle-btn active" id="btn-weekly" onclick="setFreq('weekly')">Weekly</button>
+          <button class="toggle-btn" id="btn-daily" onclick="setFreq('daily')">Daily</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="card p-5 lg:col-span-2">
+      <div class="text-xs font-mono text-accent-cyan uppercase tracking-widest font-bold mb-4">Accumulator Output</div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        <div>
+          <div class="stat-label mb-1">Strike Price</div>
+          <div class="stat-value text-lg text-accent-amber" id="acc-strike">--</div>
+        </div>
+        <div>
+          <div class="stat-label mb-1">KO Price</div>
+          <div class="stat-value text-lg text-accent-red" id="acc-ko">--</div>
+        </div>
+        <div>
+          <div class="stat-label mb-1">Discount to Spot</div>
+          <div class="stat-value text-lg text-accent-green" id="acc-discount">--</div>
+        </div>
+        <div>
+          <div class="stat-label mb-1">Margin Required</div>
+          <div class="stat-value text-lg text-white" id="acc-margin">--</div>
+        </div>
+      </div>
+
+      <div class="border-t border-surface-700/50 pt-4 mb-4">
+        <div class="text-xs font-mono text-gray-500 mb-3">ACCUMULATION SCENARIOS</div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-surface-950 rounded-lg p-4 border border-accent-green/10">
+            <div class="text-xs text-accent-green font-mono font-bold mb-2">BEST CASE (Price in Band)</div>
+            <div class="stat-label">Total BTC Accumulated</div>
+            <div class="stat-value text-lg text-white" id="acc-btc-normal">--</div>
+            <div class="stat-label mt-2">Observations</div>
+            <div class="stat-value text-sm text-gray-300" id="acc-observations">--</div>
+            <div class="stat-label mt-2">BTC Per Period</div>
+            <div class="stat-value text-sm text-gray-300" id="acc-btc-per-period">--</div>
+          </div>
+          <div class="bg-surface-950 rounded-lg p-4 border border-accent-red/10">
+            <div class="text-xs text-accent-red font-mono font-bold mb-2">WORST CASE (Price Below Strike)</div>
+            <div class="stat-label">Total BTC (2x Leverage)</div>
+            <div class="stat-value text-lg text-white" id="acc-btc-2x">--</div>
+            <div class="stat-label mt-2">Total Cost (2x)</div>
+            <div class="stat-value text-sm text-gray-300" id="acc-cost-2x">--</div>
+            <div class="stat-label mt-2">Effective Avg Cost</div>
+            <div class="stat-value text-sm text-gray-300" id="acc-eff-cost">--</div>
+          </div>
+          <div class="bg-surface-950 rounded-lg p-4 border border-accent-amber/10" id="guaranteed-info" style="display:none">
+            <div class="text-xs text-accent-amber font-mono font-bold mb-2">GUARANTEED PERIOD</div>
+            <div class="stat-label">Guaranteed Weeks</div>
+            <div class="stat-value text-lg text-white" id="acc-guaranteed-weeks">4 weeks</div>
+            <div class="stat-label mt-2">Guaranteed BTC</div>
+            <div class="stat-value text-sm text-gray-300" id="acc-guaranteed-btc">--</div>
+            <div class="stat-label mt-2">Settlement</div>
+            <div class="stat-value text-sm text-gray-300">1 week</div>
+          </div>
+          <div class="bg-surface-950 rounded-lg p-4 border border-surface-600/30" id="standard-info">
+            <div class="text-xs text-gray-500 font-mono font-bold mb-2">PRODUCT INFO</div>
+            <div class="stat-label">KO Behavior</div>
+            <div class="stat-value text-sm text-gray-300">Immediate termination</div>
+            <div class="stat-label mt-2">Below Strike</div>
+            <div class="stat-value text-sm text-gray-300">Buy 2x at strike</div>
+            <div class="stat-label mt-2">In Band</div>
+            <div class="stat-value text-sm text-gray-300">Buy 1x at strike</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3: DCA vs Accumulator Comparison -->
+<section id="comparison-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">DCA vs Accumulator — Monte Carlo Simulation</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+    <button onclick="runMonteCarlo()" class="toggle-btn active text-xs">RUN SIMULATION</button>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+    <!-- Bearish -->
+    <div class="card p-5 glow-red">
+      <div class="flex items-center justify-between mb-3">
+        <span class="scenario-tag bg-accent-red/10 text-accent-red">BEARISH</span>
+        <span class="text-xs font-mono text-gray-500">30% prob</span>
+      </div>
+      <div class="text-xs font-mono text-gray-500 mb-3">$38K — $55K range</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <div class="stat-label">DCA BTC</div>
+          <div class="stat-value text-sm text-white" id="mc-bear-dca-btc">--</div>
+        </div>
+        <div>
+          <div class="stat-label">ACC BTC</div>
+          <div class="stat-value text-sm text-white" id="mc-bear-acc-btc">--</div>
+        </div>
+        <div>
+          <div class="stat-label">DCA Avg Cost</div>
+          <div class="stat-value text-sm text-gray-300" id="mc-bear-dca-cost">--</div>
+        </div>
+        <div>
+          <div class="stat-label">ACC Avg Cost</div>
+          <div class="stat-value text-sm text-gray-300" id="mc-bear-acc-cost">--</div>
+        </div>
+        <div>
+          <div class="stat-label">DCA P&L</div>
+          <div class="stat-value text-sm" id="mc-bear-dca-pnl">--</div>
+        </div>
+        <div>
+          <div class="stat-label">ACC P&L</div>
+          <div class="stat-value text-sm" id="mc-bear-acc-pnl">--</div>
+        </div>
+        <div class="col-span-2 border-t border-surface-700/30 pt-2">
+          <div class="stat-label">KO Probability</div>
+          <div class="stat-value text-sm text-accent-amber" id="mc-bear-ko">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Base -->
+    <div class="card p-5 glow-blue">
+      <div class="flex items-center justify-between mb-3">
+        <span class="scenario-tag bg-accent-blue/10 text-accent-blue">BASE CASE</span>
+        <span class="text-xs font-mono text-gray-500">45% prob</span>
+      </div>
+      <div class="text-xs font-mono text-gray-500 mb-3">$62K — $85K range</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <div class="stat-label">DCA BTC</div>
+          <div class="stat-value text-sm text-white" id="mc-base-dca-btc">--</div>
+        </div>
+        <div>
+          <div class="stat-label">ACC BTC</div>
+          <div class="stat-value text-sm text-white" id="mc-base-acc-btc">--</div>
+        </div>
+        <div>
+          <div class="stat-label">DCA Avg Cost</div>
+          <div class="stat-value text-sm text-gray-300" id="mc-base-dca-cost">--</div>
+        </div>
+        <div>
+          <div class="stat-label">ACC Avg Cost</div>
+          <div class="stat-value text-sm text-gray-300" id="mc-base-acc-cost">--</div>
+        </div>
+        <div>
+          <div class="stat-label">DCA P&L</div>
+          <div class="stat-value text-sm" id="mc-base-dca-pnl">--</div>
+        </div>
+        <div>
+          <div class="stat-label">ACC P&L</div>
+          <div class="stat-value text-sm" id="mc-base-acc-pnl">--</div>
+        </div>
+        <div class="col-span-2 border-t border-surface-700/30 pt-2">
+          <div class="stat-label">KO Probability</div>
+          <div class="stat-value text-sm text-accent-amber" id="mc-base-ko">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bullish -->
+    <div class="card p-5 glow-green">
+      <div class="flex items-center justify-between mb-3">
+        <span class="scenario-tag bg-accent-green/10 text-accent-green">BULLISH</span>
+        <span class="text-xs font-mono text-gray-500">25% prob</span>
+      </div>
+      <div class="text-xs font-mono text-gray-500 mb-3">$90K — $120K range</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <div class="stat-label">DCA BTC</div>
+          <div class="stat-value text-sm text-white" id="mc-bull-dca-btc">--</div>
+        </div>
+        <div>
+          <div class="stat-label">ACC BTC</div>
+          <div class="stat-value text-sm text-white" id="mc-bull-acc-btc">--</div>
+        </div>
+        <div>
+          <div class="stat-label">DCA Avg Cost</div>
+          <div class="stat-value text-sm text-gray-300" id="mc-bull-dca-cost">--</div>
+        </div>
+        <div>
+          <div class="stat-label">ACC Avg Cost</div>
+          <div class="stat-value text-sm text-gray-300" id="mc-bull-acc-cost">--</div>
+        </div>
+        <div>
+          <div class="stat-label">DCA P&L</div>
+          <div class="stat-value text-sm" id="mc-bull-dca-pnl">--</div>
+        </div>
+        <div>
+          <div class="stat-label">ACC P&L</div>
+          <div class="stat-value text-sm" id="mc-bull-acc-pnl">--</div>
+        </div>
+        <div class="col-span-2 border-t border-surface-700/30 pt-2">
+          <div class="stat-label">KO Probability</div>
+          <div class="stat-value text-sm text-accent-amber" id="mc-bull-ko">--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Probability Weighted Summary -->
+  <div class="card p-5 mb-4">
+    <div class="text-xs font-mono text-accent-cyan uppercase tracking-widest font-bold mb-3">Probability-Weighted Expected Values</div>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div>
+        <div class="stat-label">Weighted DCA BTC</div>
+        <div class="stat-value text-lg text-white" id="mc-wt-dca-btc">--</div>
+      </div>
+      <div>
+        <div class="stat-label">Weighted ACC BTC</div>
+        <div class="stat-value text-lg text-white" id="mc-wt-acc-btc">--</div>
+      </div>
+      <div>
+        <div class="stat-label">Weighted DCA P&L</div>
+        <div class="stat-value text-lg" id="mc-wt-dca-pnl">--</div>
+      </div>
+      <div>
+        <div class="stat-label">Weighted ACC P&L</div>
+        <div class="stat-value text-lg" id="mc-wt-acc-pnl">--</div>
+      </div>
+      <div>
+        <div class="stat-label">ACC Advantage</div>
+        <div class="stat-value text-lg" id="mc-wt-advantage">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison Chart -->
+  <div class="card p-5">
+    <div style="position:relative;height:300px"><canvas id="comparison-chart"></canvas></div>
+  </div>
+</section>
+
+<!-- Section 4: Scenario Visualization -->
+<section id="scenario-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">Scenario Price Paths</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+  </div>
+  <div class="card p-5">
+    <div style="position:relative;height:400px"><canvas id="scenario-chart"></canvas></div>
+  </div>
+</section>
+
+<!-- Section 5: Existing Position Strategy -->
+<section id="position-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">Existing Position Strategy — 14 BTC</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <!-- Hold Analysis -->
+    <div class="card p-5">
+      <div class="text-xs font-mono text-accent-cyan uppercase tracking-widest font-bold mb-4">Hold Analysis — P&L at Target Prices</div>
+      <div style="position:relative;height:280px"><canvas id="hold-chart"></canvas></div>
+      <div class="mt-4 text-xs font-mono text-gray-500">Break-even at $98,000 — need +42% from current spot</div>
+    </div>
+
+    <!-- Range Trading -->
+    <div class="card p-5">
+      <div class="text-xs font-mono text-accent-cyan uppercase tracking-widest font-bold mb-4">Range Trading Analysis</div>
+      <div class="space-y-3 mb-4">
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <div class="stat-label mb-1">Sell Price</div>
+            <input type="number" id="rt-sell" class="input-field text-xs" value="79000" onchange="updatePositionStrategy()">
+          </div>
+          <div>
+            <div class="stat-label mb-1">Buy Price</div>
+            <input type="number" id="rt-buy" class="input-field text-xs" value="62000" onchange="updatePositionStrategy()">
+          </div>
+          <div>
+            <div class="stat-label mb-1"># Round Trips</div>
+            <input type="number" id="rt-trades" class="input-field text-xs" value="3" min="1" max="20" onchange="updatePositionStrategy()">
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <div class="bg-surface-950 rounded-lg p-3 border border-accent-green/10">
+          <div class="flex justify-between">
+            <span class="stat-label">Profit Per Round Trip</span>
+            <span class="stat-value text-sm text-accent-green" id="rt-profit-per">--</span>
+          </div>
+        </div>
+        <div class="bg-surface-950 rounded-lg p-3 border border-accent-green/10">
+          <div class="flex justify-between">
+            <span class="stat-label">Total Profit (All Trips)</span>
+            <span class="stat-value text-sm text-accent-green" id="rt-total-profit">--</span>
+          </div>
+        </div>
+        <div class="bg-surface-950 rounded-lg p-3 border border-accent-green/10">
+          <div class="flex justify-between">
+            <span class="stat-label">Additional BTC from Profits</span>
+            <span class="stat-value text-sm text-white" id="rt-extra-btc">--</span>
+          </div>
+        </div>
+        <div class="bg-surface-950 rounded-lg p-3 border border-accent-amber/10">
+          <div class="flex justify-between">
+            <span class="stat-label">Effective New Avg Cost</span>
+            <span class="stat-value text-sm text-accent-amber" id="rt-new-avg">--</span>
+          </div>
+        </div>
+        <div class="bg-surface-950 rounded-lg p-3 border border-accent-red/10">
+          <div class="flex justify-between">
+            <span class="stat-label">Missed Upside Risk (if BTC hits $120K)</span>
+            <span class="stat-value text-sm text-accent-red" id="rt-missed">--</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 6: Decision Summary -->
+<section id="decision-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">Decision Summary</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+  </div>
+
+  <div class="recommendation-card rounded-xl p-6" id="recommendation-panel">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- Question 1 -->
+      <div>
+        <div class="text-xs font-mono text-accent-cyan uppercase tracking-widest font-bold mb-3">Q1: DCA or Accumulator?</div>
+        <div id="rec-q1" class="text-sm text-gray-300 leading-relaxed">Run the Monte Carlo simulation to generate recommendations.</div>
+      </div>
+      <!-- Question 2 -->
+      <div>
+        <div class="text-xs font-mono text-accent-cyan uppercase tracking-widest font-bold mb-3">Q2: Hold or Trade the 14 BTC?</div>
+        <div id="rec-q2" class="text-sm text-gray-300 leading-relaxed">--</div>
+      </div>
+      <!-- Question 3 -->
+      <div>
+        <div class="text-xs font-mono text-accent-cyan uppercase tracking-widest font-bold mb-3">Q3: Risk Assessment</div>
+        <div id="rec-q3" class="text-sm text-gray-300 leading-relaxed">--</div>
+      </div>
+    </div>
+
+    <!-- Risk Metrics Row -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-5 border-t border-surface-700/30">
+      <div>
+        <div class="stat-label">Weighted KO Prob</div>
+        <div class="stat-value text-lg" id="rec-ko-prob">--</div>
+      </div>
+      <div>
+        <div class="stat-label">Margin Call Risk</div>
+        <div class="stat-value text-lg" id="rec-margin-risk">--</div>
+      </div>
+      <div>
+        <div class="stat-label">Suggested Allocation</div>
+        <div class="stat-value text-lg text-accent-cyan" id="rec-allocation">--</div>
+      </div>
+      <div>
+        <div class="stat-label">Preferred Variant</div>
+        <div class="stat-value text-lg text-white" id="rec-variant">--</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="border-t border-surface-700/30 mt-12">
+  <div class="max-w-[1600px] mx-auto px-6 py-4 flex justify-between items-center">
+    <span class="text-xs text-gray-600 font-mono">BTC/ACC Strategy Engine v1.0</span>
+    <span class="text-xs text-gray-600 font-mono">Not financial advice. Simulation results are illustrative.</span>
+  </div>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+const STATE = {
+  portfolio: { btcHeld: 14, avgCost: 98000, cash: 2500000, spotPrice: 69000 },
+  termSheets: {
+    standard: [
+      { row:1,  tenor:3,  strikePct:90.69, koPct:110, marginPct:40 },
+      { row:2,  tenor:3,  strikePct:93.17, koPct:120, marginPct:45 },
+      { row:5,  tenor:6,  strikePct:84.67, koPct:110, marginPct:40 },
+      { row:6,  tenor:6,  strikePct:87.08, koPct:120, marginPct:40 },
+      { row:7,  tenor:6,  strikePct:89.29, koPct:130, marginPct:40 },
+      { row:8,  tenor:6,  strikePct:90.99, koPct:140, marginPct:40 },
+      { row:9,  tenor:9,  strikePct:81.73, koPct:110, marginPct:35 },
+      { row:10, tenor:9,  strikePct:84.08, koPct:120, marginPct:35 },
+      { row:11, tenor:9,  strikePct:86.40, koPct:130, marginPct:40 },
+      { row:12, tenor:9,  strikePct:88.32, koPct:140, marginPct:40 },
+      { row:13, tenor:12, strikePct:78.34, koPct:110, marginPct:35 },
+      { row:14, tenor:12, strikePct:80.62, koPct:120, marginPct:35 },
+      { row:15, tenor:12, strikePct:82.99, koPct:130, marginPct:35 },
+      { row:16, tenor:12, strikePct:84.99, koPct:140, marginPct:35 },
+    ],
+    guaranteed: [
+      { row:1,  tenor:3,  strikePct:92.20, koPct:110, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:2,  tenor:3,  strikePct:93.51, koPct:120, marginPct:45, gWeeks:4, sWeeks:1 },
+      { row:5,  tenor:6,  strikePct:86.82, koPct:110, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:6,  tenor:6,  strikePct:88.42, koPct:120, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:7,  tenor:6,  strikePct:90.42, koPct:130, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:8,  tenor:6,  strikePct:92.02, koPct:140, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:9,  tenor:9,  strikePct:82.66, koPct:110, marginPct:35, gWeeks:4, sWeeks:1 },
+      { row:10, tenor:9,  strikePct:84.24, koPct:120, marginPct:35, gWeeks:4, sWeeks:1 },
+      { row:11, tenor:9,  strikePct:86.43, koPct:130, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:12, tenor:9,  strikePct:88.33, koPct:140, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:13, tenor:12, strikePct:79.18, koPct:110, marginPct:35, gWeeks:4, sWeeks:1 },
+      { row:14, tenor:12, strikePct:80.74, koPct:120, marginPct:35, gWeeks:4, sWeeks:1 },
+      { row:15, tenor:12, strikePct:83.01, koPct:130, marginPct:35, gWeeks:4, sWeeks:1 },
+      { row:16, tenor:12, strikePct:85.00, koPct:140, marginPct:35, gWeeks:4, sWeeks:1 },
+    ],
+    guaranteed26w: [
+      { row:17, tenor:12, strikePct:89.11, koPct:110, marginPct:35, gWeeks:26, sWeeks:1 },
+    ]
+  },
+  scenarios: {
+    bearish:  { probability: 0.30, rangeLow: 38000, rangeHigh: 55000, midpoint: 47000 },
+    base:     { probability: 0.45, rangeLow: 62000, rangeHigh: 85000, midpoint: 73500 },
+    bullish:  { probability: 0.25, rangeLow: 90000, rangeHigh: 120000, midpoint: 105000 },
+  },
+  calculator: { variant: 'standard', selectedRow: 13, freq: 'weekly' },
+  mcResults: null,
+};
+
+// ═══════════════════════════════════════════════
+// FORMATTING
+// ═══════════════════════════════════════════════
+const fmtUSD = n => '$' + Math.round(n).toLocaleString('en-US');
+const fmtBTC = n => n.toFixed(4);
+const fmtPct = n => (n >= 0 ? '+' : '') + (n * 100).toFixed(2) + '%';
+const fmtPnL = n => (n >= 0 ? '+' : '') + fmtUSD(n);
+const pnlColor = n => n >= 0 ? '#00e89d' : '#ff3b5c';
+
+// ═══════════════════════════════════════════════
+// LIVE PRICE
+// ═══════════════════════════════════════════════
+async function fetchLivePrice() {
+  try {
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true');
+    const data = await res.json();
+    const price = data.bitcoin.usd;
+    const change = data.bitcoin.usd_24h_change;
+    STATE.portfolio.spotPrice = price;
+    document.getElementById('spot-input').value = '';
+    document.getElementById('spot-input').placeholder = Math.round(price).toLocaleString();
+    document.getElementById('spot-slider').value = price;
+    document.getElementById('header-price').textContent = fmtUSD(price);
+    const changeEl = document.getElementById('header-change');
+    changeEl.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+    changeEl.style.color = change >= 0 ? '#00e89d' : '#ff3b5c';
+    document.getElementById('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+    updateAll();
+  } catch(e) {
+    document.getElementById('header-price').textContent = fmtUSD(STATE.portfolio.spotPrice);
+    document.getElementById('last-updated').textContent = 'API error — using default';
+    updateAll();
+  }
+}
+
+// ═══════════════════════════════════════════════
+// TERM SHEET HELPERS
+// ═══════════════════════════════════════════════
+function getSheets() { return STATE.termSheets[STATE.calculator.variant]; }
+function getSelectedTerm() {
+  return getSheets().find(t => t.row === STATE.calculator.selectedRow);
+}
+
+function populateTermSelect() {
+  const sel = document.getElementById('term-select');
+  sel.innerHTML = '';
+  getSheets().forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.row;
+    opt.textContent = `${t.tenor}M | Strike ${t.strikePct.toFixed(2)}% | KO ${t.koPct}%`;
+    if (t.row === STATE.calculator.selectedRow) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function setVariant(v) {
+  STATE.calculator.variant = v;
+  document.getElementById('btn-standard').classList.toggle('active', v === 'standard');
+  document.getElementById('btn-guaranteed').classList.toggle('active', v === 'guaranteed');
+  document.getElementById('btn-guaranteed26w').classList.toggle('active', v === 'guaranteed26w');
+  const isGuaranteed = v === 'guaranteed' || v === 'guaranteed26w';
+  document.getElementById('guaranteed-info').style.display = isGuaranteed ? '' : 'none';
+  document.getElementById('standard-info').style.display = !isGuaranteed ? '' : 'none';
+  // Find matching row in new variant
+  const old = getSelectedTerm();
+  if (!old) STATE.calculator.selectedRow = getSheets()[0].row;
+  populateTermSelect();
+  syncEditFields();
+  updateAll();
+}
+
+function setFreq(f) {
+  STATE.calculator.freq = f;
+  document.getElementById('btn-weekly').classList.toggle('active', f === 'weekly');
+  document.getElementById('btn-daily').classList.toggle('active', f === 'daily');
+  updateAll();
+}
+
+function onTermChange() {
+  STATE.calculator.selectedRow = parseInt(document.getElementById('term-select').value);
+  syncEditFields();
+  updateAll();
+}
+
+function syncEditFields() {
+  const t = getSelectedTerm();
+  if (!t) return;
+  document.getElementById('edit-strike-pct').value = t.strikePct;
+  document.getElementById('edit-ko-pct').value = t.koPct;
+  document.getElementById('edit-margin-pct').value = t.marginPct;
+}
+
+function onParamEdit() {
+  const t = getSelectedTerm();
+  if (!t) return;
+  t.strikePct = parseFloat(document.getElementById('edit-strike-pct').value) || t.strikePct;
+  t.koPct = parseFloat(document.getElementById('edit-ko-pct').value) || t.koPct;
+  t.marginPct = parseFloat(document.getElementById('edit-margin-pct').value) || t.marginPct;
+  updateAll();
+}
+
+// ═══════════════════════════════════════════════
+// PORTFOLIO CALCULATIONS
+// ═══════════════════════════════════════════════
+function updatePortfolio() {
+  const { btcHeld, avgCost, cash, spotPrice } = STATE.portfolio;
+  const costBasis = btcHeld * avgCost;
+  const currentVal = btcHeld * spotPrice;
+  const pnl = currentVal - costBasis;
+  const pnlPct = pnl / costBasis;
+
+  document.getElementById('current-value').textContent = fmtUSD(currentVal);
+  document.getElementById('current-value').style.color = pnlColor(pnl);
+  document.getElementById('unrealized-pnl').textContent = fmtPnL(pnl);
+  document.getElementById('unrealized-pnl').style.color = pnlColor(pnl);
+  document.getElementById('unrealized-pnl-pct').textContent = fmtPct(pnlPct);
+  document.getElementById('unrealized-pnl-pct').style.color = pnlColor(pnl);
+  document.getElementById('total-portfolio').textContent = fmtUSD(currentVal + cash);
+  document.getElementById('spot-slider-val').textContent = fmtUSD(spotPrice);
+}
+
+// ═══════════════════════════════════════════════
+// ACCUMULATOR CALCULATIONS
+// ═══════════════════════════════════════════════
+function calcAccumulator() {
+  const t = getSelectedTerm();
+  if (!t) return null;
+  const spot = STATE.portfolio.spotPrice;
+  const notional = parseFloat(document.getElementById('notional-input').value) || 1000000;
+
+  const strikePrice = spot * (t.strikePct / 100);
+  const koPrice = spot * (t.koPct / 100);
+  const tenorWeeks = Math.round(t.tenor * 4.33);
+  const numObs = STATE.calculator.freq === 'weekly' ? tenorWeeks : tenorWeeks * 5;
+  const notionalPerPeriod = notional / numObs;
+  const btcPerPeriod = notionalPerPeriod / strikePrice;
+  const totalBtcNormal = btcPerPeriod * numObs;
+  const totalBtc2x = btcPerPeriod * 2 * numObs;
+  const totalCost2x = notional * 2;
+  const marginRequired = (t.marginPct / 100) * (2 * notional);
+  const discount = 1 - (strikePrice / spot);
+  const gWeeks = t.gWeeks || 0;
+  const isGuaranteed = STATE.calculator.variant === 'guaranteed' || STATE.calculator.variant === 'guaranteed26w';
+  const guaranteedPeriods = isGuaranteed
+    ? (STATE.calculator.freq === 'weekly' ? gWeeks : gWeeks * 5) : 0;
+  const guaranteedBtc = btcPerPeriod * guaranteedPeriods;
+
+  return { term: t, strikePrice, koPrice, numObs, notionalPerPeriod, btcPerPeriod,
+           totalBtcNormal, totalBtc2x, totalCost2x, marginRequired, discount,
+           guaranteedPeriods, guaranteedBtc, notional, tenorWeeks };
+}
+
+function updateAccumulator() {
+  const a = calcAccumulator();
+  if (!a) return;
+  document.getElementById('acc-strike').textContent = fmtUSD(a.strikePrice);
+  document.getElementById('acc-ko').textContent = fmtUSD(a.koPrice);
+  document.getElementById('acc-discount').textContent = (a.discount * 100).toFixed(2) + '%';
+  document.getElementById('acc-margin').textContent = fmtUSD(a.marginRequired);
+  document.getElementById('acc-btc-normal').textContent = fmtBTC(a.totalBtcNormal);
+  document.getElementById('acc-observations').textContent = a.numObs + ' periods';
+  document.getElementById('acc-btc-per-period').textContent = fmtBTC(a.btcPerPeriod);
+  document.getElementById('acc-btc-2x').textContent = fmtBTC(a.totalBtc2x);
+  document.getElementById('acc-cost-2x').textContent = fmtUSD(a.totalCost2x);
+  document.getElementById('acc-eff-cost').textContent = fmtUSD(a.strikePrice);
+  if (STATE.calculator.variant === 'guaranteed' || STATE.calculator.variant === 'guaranteed26w') {
+    document.getElementById('acc-guaranteed-btc').textContent = fmtBTC(a.guaranteedBtc);
+    document.getElementById('acc-guaranteed-weeks').textContent = (a.term.gWeeks || 4) + ' weeks';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// MONTE CARLO ENGINE
+// ═══════════════════════════════════════════════
+function makeRNG(seed) {
+  let s = [seed>>>0, (seed^0xDEADBEEF)>>>0, (seed^0xCAFEBABE)>>>0, (seed^0x12345678)>>>0];
+  function next() {
+    let t = s[3]; t ^= t << 11; t ^= t >>> 8;
+    s[3]=s[2]; s[2]=s[1]; s[1]=s[0];
+    t ^= s[0]; t ^= s[0] >>> 19; s[0]=t;
+    return (t >>> 0) / 0xFFFFFFFF;
+  }
+  let hasSpare = false, spare;
+  return function() {
+    if (hasSpare) { hasSpare = false; return spare; }
+    let u, v, s2;
+    do { u = next()*2-1; v = next()*2-1; s2 = u*u + v*v; } while (s2 >= 1 || s2 === 0);
+    const mul = Math.sqrt(-2 * Math.log(s2) / s2);
+    spare = v * mul; hasSpare = true;
+    return u * mul;
+  };
+}
+
+function generatePricePath(S0, mu, sigma, T, steps, rng) {
+  const dt = T / steps;
+  const prices = [S0];
+  for (let i = 1; i <= steps; i++) {
+    const z = rng();
+    prices.push(prices[i-1] * Math.exp((mu - 0.5*sigma*sigma)*dt + sigma*Math.sqrt(dt)*z));
+  }
+  return prices;
+}
+
+function calibrateScenario(S0, scenario, T) {
+  const mu = Math.log(scenario.midpoint / S0) / T;
+  const sigmaApprox = Math.log(scenario.rangeHigh / scenario.midpoint) / Math.sqrt(T);
+  const sigma = Math.max(0.40, Math.min(1.00, sigmaApprox));
+  return { mu, sigma };
+}
+
+function simulateAccumulator(path, strikePrice, koPrice, notionalPerPeriod, isGuaranteed, guaranteedPeriods) {
+  let totalBtc = 0, totalSpent = 0, koTriggered = false, koWeek = -1;
+  for (let i = 1; i < path.length; i++) {
+    const price = path[i];
+    const inGP = isGuaranteed && i <= guaranteedPeriods;
+    if (price >= koPrice && !inGP) { koTriggered = true; koWeek = i; break; }
+    if (price < strikePrice) {
+      totalBtc += (notionalPerPeriod / strikePrice) * 2;
+      totalSpent += notionalPerPeriod * 2;
+    } else {
+      totalBtc += notionalPerPeriod / strikePrice;
+      totalSpent += notionalPerPeriod;
+    }
+  }
+  return { totalBtc, totalSpent, koTriggered, koWeek,
+           periodsActive: koTriggered ? koWeek : path.length - 1,
+           avgCost: totalBtc > 0 ? totalSpent / totalBtc : 0 };
+}
+
+function simulateDCA(path, notionalPerPeriod, maxPeriods) {
+  let totalBtc = 0, totalSpent = 0;
+  const periods = Math.min(path.length - 1, maxPeriods);
+  for (let i = 1; i <= periods; i++) {
+    totalBtc += notionalPerPeriod / path[i];
+    totalSpent += notionalPerPeriod;
+  }
+  return { totalBtc, totalSpent, avgCost: totalBtc > 0 ? totalSpent / totalBtc : 0 };
+}
+
+function runMonteCarlo() {
+  const acc = calcAccumulator();
+  if (!acc) return;
+  const S0 = STATE.portfolio.spotPrice;
+  const numPaths = 1000;
+  const results = {};
+  const isG = STATE.calculator.variant === 'guaranteed' || STATE.calculator.variant === 'guaranteed26w';
+
+  for (const [key, scenario] of Object.entries(STATE.scenarios)) {
+    const T = acc.term.tenor / 12;
+    const { mu, sigma } = calibrateScenario(S0, scenario, T);
+    const rng = makeRNG(42 + key.charCodeAt(0));
+    const accRes = [], dcaRes = [];
+
+    for (let p = 0; p < numPaths; p++) {
+      const path = generatePricePath(S0, mu, sigma, T, acc.numObs, rng);
+      const terminal = path[path.length - 1];
+
+      const ar = simulateAccumulator(path, acc.strikePrice, acc.koPrice, acc.notionalPerPeriod, isG, acc.guaranteedPeriods);
+      ar.terminalValue = ar.totalBtc * terminal;
+      ar.pnl = ar.terminalValue - ar.totalSpent;
+      accRes.push(ar);
+
+      const dr = simulateDCA(path, acc.notionalPerPeriod, acc.numObs);
+      dr.terminalValue = dr.totalBtc * terminal;
+      dr.pnl = dr.terminalValue - dr.totalSpent;
+      dcaRes.push(dr);
+    }
+
+    const agg = arr => {
+      const btcs = arr.map(r => r.totalBtc);
+      const pnls = arr.map(r => r.pnl);
+      const costs = arr.map(r => r.avgCost);
+      const avg = a => a.reduce((s,v)=>s+v,0)/a.length;
+      return { avgBtc: avg(btcs), avgPnl: avg(pnls), avgCost: avg(costs) };
+    };
+
+    results[key] = {
+      probability: scenario.probability,
+      acc: { ...agg(accRes), koProbability: accRes.filter(r=>r.koTriggered).length / numPaths },
+      dca: agg(dcaRes),
+    };
+  }
+
+  STATE.mcResults = results;
+  renderMCResults();
+  renderComparisonChart();
+  renderRecommendation();
+}
+
+function renderMCResults() {
+  const r = STATE.mcResults;
+  if (!r) return;
+
+  const scenarios = [
+    { key:'bearish', prefix:'bear' },
+    { key:'base', prefix:'base' },
+    { key:'bullish', prefix:'bull' },
+  ];
+
+  let wtDcaBtc=0, wtAccBtc=0, wtDcaPnl=0, wtAccPnl=0;
+
+  for (const { key, prefix } of scenarios) {
+    const d = r[key];
+    document.getElementById(`mc-${prefix}-dca-btc`).textContent = fmtBTC(d.dca.avgBtc);
+    document.getElementById(`mc-${prefix}-acc-btc`).textContent = fmtBTC(d.acc.avgBtc);
+    document.getElementById(`mc-${prefix}-dca-cost`).textContent = fmtUSD(d.dca.avgCost);
+    document.getElementById(`mc-${prefix}-acc-cost`).textContent = fmtUSD(d.acc.avgCost);
+
+    const dcaPnlEl = document.getElementById(`mc-${prefix}-dca-pnl`);
+    dcaPnlEl.textContent = fmtPnL(d.dca.avgPnl);
+    dcaPnlEl.style.color = pnlColor(d.dca.avgPnl);
+
+    const accPnlEl = document.getElementById(`mc-${prefix}-acc-pnl`);
+    accPnlEl.textContent = fmtPnL(d.acc.avgPnl);
+    accPnlEl.style.color = pnlColor(d.acc.avgPnl);
+
+    document.getElementById(`mc-${prefix}-ko`).textContent = (d.acc.koProbability * 100).toFixed(1) + '%';
+
+    wtDcaBtc += d.probability * d.dca.avgBtc;
+    wtAccBtc += d.probability * d.acc.avgBtc;
+    wtDcaPnl += d.probability * d.dca.avgPnl;
+    wtAccPnl += d.probability * d.acc.avgPnl;
+  }
+
+  document.getElementById('mc-wt-dca-btc').textContent = fmtBTC(wtDcaBtc);
+  document.getElementById('mc-wt-acc-btc').textContent = fmtBTC(wtAccBtc);
+
+  const wdp = document.getElementById('mc-wt-dca-pnl');
+  wdp.textContent = fmtPnL(wtDcaPnl); wdp.style.color = pnlColor(wtDcaPnl);
+
+  const wap = document.getElementById('mc-wt-acc-pnl');
+  wap.textContent = fmtPnL(wtAccPnl); wap.style.color = pnlColor(wtAccPnl);
+
+  const adv = wtAccPnl - wtDcaPnl;
+  const advEl = document.getElementById('mc-wt-advantage');
+  advEl.textContent = fmtPnL(adv); advEl.style.color = pnlColor(adv);
+}
+
+// ═══════════════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════════════
+let comparisonChart = null, scenarioChart = null, holdChart = null;
+
+const chartDefaults = {
+  color: '#9CA3AF',
+  borderColor: '#1a1e2780',
+  font: { family: "'JetBrains Mono', monospace", size: 11 }
+};
+
+function renderComparisonChart() {
+  const r = STATE.mcResults;
+  if (!r) return;
+  const ctx = document.getElementById('comparison-chart');
+  if (comparisonChart) comparisonChart.destroy();
+
+  comparisonChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Bearish (30%)', 'Base Case (45%)', 'Bullish (25%)'],
+      datasets: [
+        { label: 'DCA — Avg P&L', data: [r.bearish.dca.avgPnl, r.base.dca.avgPnl, r.bullish.dca.avgPnl],
+          backgroundColor: '#3b82f680', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 },
+        { label: 'Accumulator — Avg P&L', data: [r.bearish.acc.avgPnl, r.base.acc.avgPnl, r.bullish.acc.avgPnl],
+          backgroundColor: '#00e89d80', borderColor: '#00e89d', borderWidth: 1, borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#9CA3AF', font: chartDefaults.font } },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtUSD(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { ticks: { color: '#6b7280', font: chartDefaults.font }, grid: { color: '#1a1e2740' } },
+        y: { ticks: { color: '#6b7280', font: chartDefaults.font, callback: v => fmtUSD(v) }, grid: { color: '#1a1e2740' } }
+      }
+    }
+  });
+}
+
+function renderScenarioChart() {
+  const acc = calcAccumulator();
+  if (!acc) return;
+  const ctx = document.getElementById('scenario-chart');
+  if (scenarioChart) scenarioChart.destroy();
+
+  const S0 = STATE.portfolio.spotPrice;
+  const tenor = acc.term.tenor;
+  const T = tenor / 12;
+  const steps = tenor;
+
+  const months = Array.from({length: tenor+1}, (_, i) => {
+    const d = new Date(); d.setMonth(d.getMonth() + i);
+    return d.toLocaleDateString('en-US', {month:'short', year:'2-digit'});
+  });
+
+  function band(key) {
+    const sc = STATE.scenarios[key];
+    const { mu, sigma } = calibrateScenario(S0, sc, T);
+    const rng = makeRNG(42 + key.charCodeAt(0));
+    const paths = [];
+    for (let p = 0; p < 200; p++) paths.push(generatePricePath(S0, mu, sigma, T, steps, rng));
+    const median=[], p10=[], p90=[];
+    for (let i = 0; i <= steps; i++) {
+      const vals = paths.map(p=>p[i]).sort((a,b)=>a-b);
+      p10.push(vals[Math.floor(vals.length*0.10)]);
+      median.push(vals[Math.floor(vals.length*0.50)]);
+      p90.push(vals[Math.floor(vals.length*0.90)]);
+    }
+    return { median, p10, p90 };
+  }
+
+  const bear = band('bearish'), base = band('base'), bull = band('bullish');
+  const ptOpts = { pointRadius: 0, borderWidth: 1.5, tension: 0.3 };
+  const bandOpts = { pointRadius: 0, borderWidth: 1, tension: 0.3, borderDash: [3,3] };
+
+  scenarioChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [
+        { label:'Bearish', data:bear.median, borderColor:'#ff3b5c', fill:false, ...ptOpts },
+        { label:'Bear P10', data:bear.p10, borderColor:'#ff3b5c30', fill:'+1', backgroundColor:'#ff3b5c08', ...bandOpts },
+        { label:'Bear P90', data:bear.p90, borderColor:'#ff3b5c30', fill:false, ...bandOpts },
+        { label:'Base Case', data:base.median, borderColor:'#3b82f6', fill:false, ...ptOpts },
+        { label:'Base P10', data:base.p10, borderColor:'#3b82f630', fill:'+1', backgroundColor:'#3b82f608', ...bandOpts },
+        { label:'Base P90', data:base.p90, borderColor:'#3b82f630', fill:false, ...bandOpts },
+        { label:'Bullish', data:bull.median, borderColor:'#00e89d', fill:false, ...ptOpts },
+        { label:'Bull P10', data:bull.p10, borderColor:'#00e89d30', fill:'+1', backgroundColor:'#00e89d08', ...bandOpts },
+        { label:'Bull P90', data:bull.p90, borderColor:'#00e89d30', fill:false, ...bandOpts },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: {
+            color: '#9CA3AF', font: chartDefaults.font,
+            filter: item => !item.text.includes('P10') && !item.text.includes('P90')
+          }
+        },
+        annotation: {
+          annotations: {
+            strike: { type:'line', yMin:acc.strikePrice, yMax:acc.strikePrice, borderColor:'#ffb224', borderWidth:2, borderDash:[6,3],
+              label: { display:true, content:'Strike: '+fmtUSD(acc.strikePrice), color:'#ffb224', backgroundColor:'#08090cdd', font:{family:"'JetBrains Mono'",size:10}, position:'start' } },
+            ko: { type:'line', yMin:acc.koPrice, yMax:acc.koPrice, borderColor:'#ff3b5c', borderWidth:2, borderDash:[6,3],
+              label: { display:true, content:'KO: '+fmtUSD(acc.koPrice), color:'#ff3b5c', backgroundColor:'#08090cdd', font:{family:"'JetBrains Mono'",size:10}, position:'end' } },
+            spot: { type:'line', yMin:S0, yMax:S0, borderColor:'#6b7280', borderWidth:1, borderDash:[3,3],
+              label: { display:true, content:'Spot: '+fmtUSD(S0), color:'#6b7280', backgroundColor:'#08090cdd', font:{family:"'JetBrains Mono'",size:10}, position:'center' } },
+          }
+        },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtUSD(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { ticks:{color:'#6b7280',font:chartDefaults.font}, grid:{color:'#1a1e2740'} },
+        y: { ticks:{color:'#6b7280',font:chartDefaults.font,callback:v=>fmtUSD(v)}, grid:{color:'#1a1e2740'} }
+      }
+    }
+  });
+}
+
+function renderHoldChart() {
+  const ctx = document.getElementById('hold-chart');
+  if (holdChart) holdChart.destroy();
+
+  const { btcHeld, avgCost } = STATE.portfolio;
+  const targets = [35000,40000,45000,50000,55000,60000,65000,69000,75000,79000,85000,90000,95000,98000,100000,110000,120000];
+  const pnls = targets.map(p => btcHeld * (p - avgCost));
+
+  holdChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: targets.map(t => (t/1000)+'K'),
+      datasets: [{
+        label: '14 BTC P&L',
+        data: pnls,
+        segment: { borderColor: ctx => ctx.p0.parsed.y < 0 && ctx.p1.parsed.y < 0 ? '#ff3b5c' : ctx.p0.parsed.y >= 0 && ctx.p1.parsed.y >= 0 ? '#00e89d' : '#ffb224' },
+        fill: { target:'origin', above:'#00e89d10', below:'#ff3b5c10' },
+        tension: 0.2, pointRadius: 3, pointBackgroundColor: pnls.map(p => p >= 0 ? '#00e89d' : '#ff3b5c'),
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        annotation: {
+          annotations: {
+            breakeven: { type:'line', yMin:0, yMax:0, borderColor:'#ffb22480', borderDash:[5,5], borderWidth:1,
+              label: { display:true, content:'Break-even: $98K', color:'#ffb224', backgroundColor:'#08090cdd', font:{family:"'JetBrains Mono'",size:10} } }
+          }
+        },
+        tooltip: { callbacks: { label: ctx => 'P&L: ' + fmtPnL(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { title:{display:true,text:'BTC Price',color:'#6b7280',font:chartDefaults.font}, ticks:{color:'#6b7280',font:chartDefaults.font}, grid:{color:'#1a1e2740'} },
+        y: { title:{display:true,text:'P&L (USD)',color:'#6b7280',font:chartDefaults.font}, ticks:{color:'#6b7280',font:chartDefaults.font,callback:v=>fmtUSD(v)}, grid:{color:'#1a1e2740'} }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// POSITION STRATEGY
+// ═══════════════════════════════════════════════
+function updatePositionStrategy() {
+  const sell = parseFloat(document.getElementById('rt-sell').value) || 79000;
+  const buy = parseFloat(document.getElementById('rt-buy').value) || 62000;
+  const trades = parseInt(document.getElementById('rt-trades').value) || 3;
+  const btc = STATE.portfolio.btcHeld;
+
+  const profitPerTrade = (sell - buy) * btc;
+  const totalProfit = profitPerTrade * trades;
+  const extraBtc = totalProfit / buy;
+  const newAvg = (STATE.portfolio.avgCost * btc - totalProfit) / btc;
+  const missedUpside = (120000 - sell) * btc;
+
+  document.getElementById('rt-profit-per').textContent = fmtUSD(profitPerTrade);
+  document.getElementById('rt-total-profit').textContent = fmtUSD(totalProfit);
+  document.getElementById('rt-extra-btc').textContent = fmtBTC(extraBtc) + ' BTC';
+  document.getElementById('rt-new-avg').textContent = fmtUSD(Math.max(0, newAvg));
+  document.getElementById('rt-missed').textContent = fmtUSD(missedUpside);
+}
+
+// ═══════════════════════════════════════════════
+// RECOMMENDATION ENGINE
+// ═══════════════════════════════════════════════
+function renderRecommendation() {
+  const r = STATE.mcResults;
+  if (!r) return;
+  const acc = calcAccumulator();
+  if (!acc) return;
+
+  let wtDcaPnl=0, wtAccPnl=0, wtKo=0;
+  for (const [key, d] of Object.entries(r)) {
+    wtDcaPnl += d.probability * d.dca.avgPnl;
+    wtAccPnl += d.probability * d.acc.avgPnl;
+    wtKo += d.probability * d.acc.koProbability;
+  }
+
+  const advantage = wtAccPnl - wtDcaPnl;
+  const accPct = Math.min(60, Math.max(20, 40 + advantage / 50000)) / 100;
+  const marginOverHalf = acc.marginRequired > STATE.portfolio.cash * 0.5;
+
+  // Q1
+  let q1;
+  if (advantage > 0) {
+    q1 = `<span class="text-accent-green font-mono font-bold">ACCUMULATOR PREFERRED</span><br>
+    <span class="text-xs text-gray-400 mt-2 block">The accumulator outperforms DCA by <span class="text-accent-green">${fmtUSD(advantage)}</span> on a probability-weighted basis.
+    Suggested split: <span class="text-white">${Math.round(accPct*100)}% Accumulator / ${Math.round((1-accPct)*100)}% DCA</span>
+    (${fmtUSD(acc.notional * accPct)} via accumulator, ${fmtUSD(acc.notional * (1-accPct))} via spot DCA).
+    The accumulator's strike discount of ${(acc.discount*100).toFixed(1)}% provides meaningful cost savings in base/bear scenarios.</span>`;
+  } else {
+    q1 = `<span class="text-accent-blue font-mono font-bold">DCA PREFERRED</span><br>
+    <span class="text-xs text-gray-400 mt-2 block">DCA outperforms the accumulator by <span class="text-accent-blue">${fmtUSD(Math.abs(advantage))}</span> probability-weighted.
+    The 2x leverage risk in bear scenarios and KO termination in bull scenarios erode the accumulator's strike discount advantage.</span>`;
+  }
+  document.getElementById('rec-q1').innerHTML = q1;
+
+  // Q2
+  const spot = STATE.portfolio.spotPrice;
+  const pctFromBE = ((98000 - spot) / spot * 100).toFixed(0);
+  let q2;
+  if (spot < 75000) {
+    q2 = `<span class="text-accent-amber font-mono font-bold">HOLD — ACCUMULATION ZONE</span><br>
+    <span class="text-xs text-gray-400 mt-2 block">At ${fmtUSD(spot)}, you're ${pctFromBE}% below your $98K break-even. This is near the $60-62K institutional accumulation zone from your macro report.
+    Range trading at this level risks selling near support. With your $100K conviction, holding and using cash to DCA/accumulate more is the higher EV play.
+    Only consider range trading if BTC establishes a clear $62K-$79K channel.</span>`;
+  } else {
+    q2 = `<span class="text-accent-cyan font-mono font-bold">CONSIDER RANGE TRADING</span><br>
+    <span class="text-xs text-gray-400 mt-2 block">At ${fmtUSD(spot)}, you could range trade between support ($62K) and the $79K True Market Mean.
+    But the risk of missing a breakout above $79K is significant if your $100K thesis plays out.</span>`;
+  }
+  document.getElementById('rec-q2').innerHTML = q2;
+
+  // Q3
+  const marginRisk = marginOverHalf ? 'HIGH' : 'LOW';
+  const marginRiskColor = marginOverHalf ? '#ff3b5c' : '#00e89d';
+  const q3 = `<span class="text-xs text-gray-400 block">
+  <span class="font-mono font-bold" style="color:${marginRiskColor}">Margin Call Risk: ${marginRisk}</span><br>
+  Required margin: ${fmtUSD(acc.marginRequired)} (${((acc.marginRequired/STATE.portfolio.cash)*100).toFixed(0)}% of cash).<br><br>
+  In the <span class="text-accent-red">bearish scenario</span>, 2x forced buying would require ${fmtUSD(acc.notional * 2)} total — ${((acc.notional*2/STATE.portfolio.cash)*100).toFixed(0)}% of your $2.5M cash.<br><br>
+  <span class="font-mono font-bold text-white">Key risk</span>: If BTC drops below $55K (cycle invalidation), the accumulator forces you to buy 2x at ${fmtUSD(acc.strikePrice)} — still above market price.
+  Consider keeping at least 40% of cash as a reserve buffer.</span>`;
+  document.getElementById('rec-q3').innerHTML = q3;
+
+  // Metrics
+  const koEl = document.getElementById('rec-ko-prob');
+  koEl.textContent = (wtKo * 100).toFixed(1) + '%';
+  koEl.style.color = wtKo > 0.5 ? '#ffb224' : '#00e89d';
+
+  const mrEl = document.getElementById('rec-margin-risk');
+  mrEl.textContent = marginRisk;
+  mrEl.style.color = marginRiskColor;
+
+  document.getElementById('rec-allocation').textContent = `${Math.round(accPct*100)}/${Math.round((1-accPct)*100)}`;
+  document.getElementById('rec-variant').textContent = wtKo > 0.5 ? 'Guaranteed' : 'Standard';
+}
+
+// ═══════════════════════════════════════════════
+// MASTER UPDATE
+// ═══════════════════════════════════════════════
+function updateAll() {
+  updatePortfolio();
+  updateAccumulator();
+  renderScenarioChart();
+  renderHoldChart();
+  updatePositionStrategy();
+  if (STATE.mcResults) {
+    runMonteCarlo();
+  }
+}
+
+// ═══════════════════════════════════════════════
+// EVENT LISTENERS
+// ═══════════════════════════════════════════════
+document.getElementById('spot-input').addEventListener('input', function() {
+  const v = parseFloat(this.value);
+  if (v > 0) {
+    STATE.portfolio.spotPrice = v;
+    document.getElementById('spot-slider').value = v;
+    updateAll();
+  }
+});
+
+document.getElementById('spot-slider').addEventListener('input', function() {
+  STATE.portfolio.spotPrice = parseFloat(this.value);
+  document.getElementById('spot-input').value = '';
+  document.getElementById('spot-input').placeholder = Math.round(STATE.portfolio.spotPrice).toLocaleString();
+  updateAll();
+});
+
+document.getElementById('notional-input').addEventListener('input', function() {
+  document.getElementById('notional-slider').value = this.value;
+  updateAll();
+});
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+(function init() {
+  populateTermSelect();
+  syncEditFields();
+  document.getElementById('spot-slider').value = STATE.portfolio.spotPrice;
+  fetchLivePrice();
+  updateAll();
+})();
+</script>
+</body>
+</html>
