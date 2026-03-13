@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BTC Accumulator Strategy Dashboard</title>
+<title>BTC & ETH Accumulator Strategy Dashboard</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
@@ -35,6 +35,7 @@ tailwind.config = {
   .glow-red { box-shadow: 0 0 20px rgba(255,59,92,0.08), inset 0 1px 0 rgba(255,59,92,0.1); }
   .glow-amber { box-shadow: 0 0 20px rgba(255,178,36,0.08), inset 0 1px 0 rgba(255,178,36,0.1); }
   .glow-blue { box-shadow: 0 0 20px rgba(59,130,246,0.08), inset 0 1px 0 rgba(59,130,246,0.1); }
+  .glow-purple { box-shadow: 0 0 20px rgba(168,85,247,0.08), inset 0 1px 0 rgba(168,85,247,0.1); }
 
   .card {
     background: linear-gradient(135deg, #0d0f14 0%, #13161d 100%);
@@ -120,7 +121,7 @@ tailwind.config = {
 <header class="sticky top-0 z-50 border-b border-surface-700/50 backdrop-blur-xl bg-surface-950/80">
   <div class="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
     <div class="flex items-center gap-4">
-      <div class="text-lg font-bold tracking-tight text-white font-mono">BTC<span class="text-accent-cyan">/</span>ACC</div>
+      <div class="text-lg font-bold tracking-tight text-white font-mono">CRYPTO<span class="text-accent-cyan">/</span>ACC</div>
       <div class="h-4 w-px bg-surface-600"></div>
       <span class="text-xs text-gray-500 font-mono uppercase tracking-widest">Metalpha Strategy Engine</span>
     </div>
@@ -130,6 +131,13 @@ tailwind.config = {
         <span class="text-xs text-gray-500 font-mono">BTC/USD</span>
         <span id="header-price" class="text-sm font-mono font-bold text-white">--</span>
         <span id="header-change" class="text-xs font-mono">--</span>
+      </div>
+      <div class="h-4 w-px bg-surface-600"></div>
+      <div class="price-ticker">
+        <div class="live-dot" style="background:#a855f7"></div>
+        <span class="text-xs text-gray-500 font-mono">ETH/USD</span>
+        <span id="eth-header-price" class="text-sm font-mono font-bold text-white">--</span>
+        <span id="eth-header-change" class="text-xs font-mono">--</span>
       </div>
       <div class="text-xs text-gray-600 font-mono" id="last-updated">--</div>
     </div>
@@ -163,8 +171,8 @@ tailwind.config = {
   <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
     <div class="card p-4">
       <div class="stat-label mb-2">BTC Holdings</div>
-      <div class="stat-value text-xl text-white">14.0000</div>
-      <div class="text-xs text-gray-500 font-mono mt-1">@ $98,000 avg</div>
+      <input type="number" id="btc-held-input" class="input-field text-xl font-semibold w-full mb-1" value="14" step="0.1" min="0" oninput="onPortfolioEdit()">
+      <div class="text-xs text-gray-500 font-mono mt-1">@ <input type="number" id="avg-cost-input" class="input-field inline-block w-20 text-xs py-1 px-2" value="98000" step="1000" min="0" oninput="onPortfolioEdit()"> avg</div>
     </div>
     <div class="card p-4">
       <div class="stat-label mb-2">Cost Basis</div>
@@ -609,11 +617,339 @@ tailwind.config = {
   </div>
 </section>
 
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- ETH ACCUMULATOR SECTIONS                             -->
+<!-- ═══════════════════════════════════════════════════════ -->
+
+<div class="mt-16 mb-8 flex items-center gap-4">
+  <div class="h-px flex-1 bg-gradient-to-r from-transparent via-purple-500/40 to-transparent"></div>
+  <div class="px-6 py-2 rounded-full border border-purple-500/30 bg-purple-500/5">
+    <span class="text-lg font-bold tracking-tight text-white font-mono">ETH<span class="text-purple-400">/</span>ACC</span>
+    <span class="text-xs text-gray-500 font-mono ml-2 uppercase tracking-widest">Accumulator</span>
+  </div>
+  <div class="h-px flex-1 bg-gradient-to-l from-transparent via-purple-500/40 to-transparent"></div>
+</div>
+
+<!-- ETH Section 1: Portfolio Overview -->
+<section id="eth-portfolio-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">ETH Portfolio Overview</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+  </div>
+  <div class="card p-4 mb-4">
+    <div class="flex items-center gap-6 flex-wrap">
+      <div class="flex items-center gap-3">
+        <span class="stat-label">ETH Spot Override</span>
+        <input type="number" id="eth-spot-input" class="input-field w-36" placeholder="Auto">
+        <button onclick="fetchEthPrice()" class="toggle-btn active text-xs" style="padding:4px 12px;border-color:#a855f7;color:#a855f7;background:#a855f710">REFRESH LIVE</button>
+      </div>
+      <div class="flex-1 min-w-[200px]">
+        <input type="range" id="eth-spot-slider" class="range-slider" min="500" max="10000" step="10">
+      </div>
+      <div class="font-mono text-sm text-gray-500" id="eth-spot-slider-val">$2,100</div>
+    </div>
+  </div>
+  <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+    <div class="card p-4">
+      <div class="stat-label mb-2">ETH Holdings</div>
+      <input type="number" id="eth-held-input" class="input-field text-xl font-semibold w-full mb-1" value="0" step="1" min="0" oninput="ethOnPortfolioEdit()">
+      <div class="text-xs text-gray-500 font-mono mt-1">@ <input type="number" id="eth-avg-cost-input" class="input-field inline-block w-20 text-xs py-1 px-2" value="2100" step="50" min="0" oninput="ethOnPortfolioEdit()"> avg</div>
+    </div>
+    <div class="card p-4">
+      <div class="stat-label mb-2">Cost Basis</div>
+      <div class="stat-value text-xl text-white" id="eth-cost-basis">$0</div>
+    </div>
+    <div class="card p-4">
+      <div class="stat-label mb-2">Current Value</div>
+      <div class="stat-value text-xl" id="eth-current-value">--</div>
+    </div>
+    <div class="card p-4">
+      <div class="stat-label mb-2">Unrealized P&L</div>
+      <div class="stat-value text-xl" id="eth-unrealized-pnl">--</div>
+      <div class="text-xs font-mono mt-1" id="eth-unrealized-pnl-pct">--</div>
+    </div>
+    <div class="card p-4">
+      <div class="stat-label mb-2">ETH Cash Alloc.</div>
+      <input type="number" id="eth-cash-input" class="input-field text-lg font-semibold w-full" value="500000" step="50000" min="0" oninput="ethOnPortfolioEdit()">
+    </div>
+    <div class="card p-4">
+      <div class="stat-label mb-2">Total ETH Portfolio</div>
+      <div class="stat-value text-xl text-white" id="eth-total-portfolio">--</div>
+    </div>
+  </div>
+</section>
+
+<!-- ETH Section 2: Accumulator Calculator -->
+<section id="eth-accumulator-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">ETH Accumulator Calculator</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="card p-5 space-y-4">
+      <div class="text-xs font-mono text-purple-400 uppercase tracking-widest font-bold mb-3">Configuration</div>
+      <div>
+        <div class="stat-label mb-2">Product Variant</div>
+        <div class="flex gap-2">
+          <button class="toggle-btn active" id="eth-btn-guaranteed" onclick="ethSetVariant('guaranteed')" style="border-color:#a855f7;color:#a855f7;background:#a855f710">Guaranteed (4W)</button>
+        </div>
+      </div>
+      <div>
+        <div class="stat-label mb-2">Term Selection</div>
+        <select id="eth-term-select" class="input-field" onchange="ethOnTermChange()"></select>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <div class="stat-label mb-1">Strike %</div>
+          <input type="number" step="0.01" id="eth-edit-strike-pct" class="input-field text-xs" onchange="ethOnParamEdit()">
+        </div>
+        <div>
+          <div class="stat-label mb-1">KO %</div>
+          <input type="number" step="1" id="eth-edit-ko-pct" class="input-field text-xs" onchange="ethOnParamEdit()">
+        </div>
+        <div>
+          <div class="stat-label mb-1">Margin %</div>
+          <input type="number" step="1" id="eth-edit-margin-pct" class="input-field text-xs" onchange="ethOnParamEdit()">
+        </div>
+      </div>
+      <div>
+        <div class="stat-label mb-2">Notional (USD)</div>
+        <input type="number" id="eth-notional-input" class="input-field" value="500000" step="25000" onchange="ethUpdateAll()">
+        <input type="range" id="eth-notional-slider" class="range-slider mt-2" min="50000" max="2500000" step="25000" value="500000" oninput="document.getElementById('eth-notional-input').value=this.value;ethUpdateAll()">
+      </div>
+      <div>
+        <div class="stat-label mb-2">Observation Frequency</div>
+        <div class="flex gap-2">
+          <button class="toggle-btn active" id="eth-btn-weekly" onclick="ethSetFreq('weekly')">Weekly</button>
+          <button class="toggle-btn" id="eth-btn-daily" onclick="ethSetFreq('daily')">Daily</button>
+        </div>
+      </div>
+    </div>
+    <div class="card p-5 lg:col-span-2">
+      <div class="text-xs font-mono text-purple-400 uppercase tracking-widest font-bold mb-4">Accumulator Output</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        <div>
+          <div class="stat-label mb-1">Strike Price</div>
+          <div class="stat-value text-lg text-accent-amber" id="eth-acc-strike">--</div>
+        </div>
+        <div>
+          <div class="stat-label mb-1">KO Price</div>
+          <div class="stat-value text-lg text-accent-red" id="eth-acc-ko">--</div>
+        </div>
+        <div>
+          <div class="stat-label mb-1">Discount to Spot</div>
+          <div class="stat-value text-lg text-accent-green" id="eth-acc-discount">--</div>
+        </div>
+        <div>
+          <div class="stat-label mb-1">Margin Required</div>
+          <div class="stat-value text-lg text-white" id="eth-acc-margin">--</div>
+        </div>
+      </div>
+      <div class="border-t border-surface-700/50 pt-4 mb-4">
+        <div class="text-xs font-mono text-gray-500 mb-3">ACCUMULATION SCENARIOS</div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-surface-950 rounded-lg p-4 border border-accent-green/10">
+            <div class="text-xs text-accent-green font-mono font-bold mb-2">BEST CASE (Price in Band)</div>
+            <div class="stat-label">Total ETH Accumulated</div>
+            <div class="stat-value text-lg text-white" id="eth-acc-normal">--</div>
+            <div class="stat-label mt-2">Observations</div>
+            <div class="stat-value text-sm text-gray-300" id="eth-acc-observations">--</div>
+            <div class="stat-label mt-2">ETH Per Period</div>
+            <div class="stat-value text-sm text-gray-300" id="eth-acc-per-period">--</div>
+          </div>
+          <div class="bg-surface-950 rounded-lg p-4 border border-accent-red/10">
+            <div class="text-xs text-accent-red font-mono font-bold mb-2">WORST CASE (Price Below Strike)</div>
+            <div class="stat-label">Total ETH (2x Leverage)</div>
+            <div class="stat-value text-lg text-white" id="eth-acc-2x">--</div>
+            <div class="stat-label mt-2">Total Cost (2x)</div>
+            <div class="stat-value text-sm text-gray-300" id="eth-acc-cost-2x">--</div>
+            <div class="stat-label mt-2">Effective Avg Cost</div>
+            <div class="stat-value text-sm text-gray-300" id="eth-acc-eff-cost">--</div>
+          </div>
+          <div class="bg-surface-950 rounded-lg p-4 border border-accent-amber/10">
+            <div class="text-xs text-accent-amber font-mono font-bold mb-2">GUARANTEED PERIOD</div>
+            <div class="stat-label">Guaranteed Weeks</div>
+            <div class="stat-value text-lg text-white" id="eth-acc-guaranteed-weeks">4 weeks</div>
+            <div class="stat-label mt-2">Guaranteed ETH</div>
+            <div class="stat-value text-sm text-gray-300" id="eth-acc-guaranteed-eth">--</div>
+            <div class="stat-label mt-2">Settlement</div>
+            <div class="stat-value text-sm text-gray-300">1 week</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ETH Section 3: DCA vs Accumulator Comparison -->
+<section id="eth-comparison-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">ETH DCA vs Accumulator — Monte Carlo Simulation</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+    <button onclick="ethRunMonteCarlo()" class="toggle-btn active text-xs" style="border-color:#a855f7;color:#a855f7;background:#a855f710">RUN SIMULATION</button>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+    <div class="card p-5 glow-red">
+      <div class="flex items-center justify-between mb-3">
+        <span class="scenario-tag bg-accent-red/10 text-accent-red">BEARISH</span>
+        <span class="text-xs font-mono text-gray-500">30% prob</span>
+      </div>
+      <div class="text-xs font-mono text-gray-500 mb-3">$1,200 — $1,800 range</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><div class="stat-label">DCA ETH</div><div class="stat-value text-sm text-white" id="eth-mc-bear-dca-eth">--</div></div>
+        <div><div class="stat-label">ACC ETH</div><div class="stat-value text-sm text-white" id="eth-mc-bear-acc-eth">--</div></div>
+        <div><div class="stat-label">DCA Avg Cost</div><div class="stat-value text-sm text-gray-300" id="eth-mc-bear-dca-cost">--</div></div>
+        <div><div class="stat-label">ACC Avg Cost</div><div class="stat-value text-sm text-gray-300" id="eth-mc-bear-acc-cost">--</div></div>
+        <div><div class="stat-label">DCA P&L</div><div class="stat-value text-sm" id="eth-mc-bear-dca-pnl">--</div></div>
+        <div><div class="stat-label">ACC P&L</div><div class="stat-value text-sm" id="eth-mc-bear-acc-pnl">--</div></div>
+        <div class="col-span-2 border-t border-surface-700/30 pt-2">
+          <div class="stat-label">KO Probability</div>
+          <div class="stat-value text-sm text-accent-amber" id="eth-mc-bear-ko">--</div>
+        </div>
+      </div>
+    </div>
+    <div class="card p-5 glow-blue">
+      <div class="flex items-center justify-between mb-3">
+        <span class="scenario-tag bg-accent-blue/10 text-accent-blue">BASE CASE</span>
+        <span class="text-xs font-mono text-gray-500">45% prob</span>
+      </div>
+      <div class="text-xs font-mono text-gray-500 mb-3">$2,000 — $2,800 range</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><div class="stat-label">DCA ETH</div><div class="stat-value text-sm text-white" id="eth-mc-base-dca-eth">--</div></div>
+        <div><div class="stat-label">ACC ETH</div><div class="stat-value text-sm text-white" id="eth-mc-base-acc-eth">--</div></div>
+        <div><div class="stat-label">DCA Avg Cost</div><div class="stat-value text-sm text-gray-300" id="eth-mc-base-dca-cost">--</div></div>
+        <div><div class="stat-label">ACC Avg Cost</div><div class="stat-value text-sm text-gray-300" id="eth-mc-base-acc-cost">--</div></div>
+        <div><div class="stat-label">DCA P&L</div><div class="stat-value text-sm" id="eth-mc-base-dca-pnl">--</div></div>
+        <div><div class="stat-label">ACC P&L</div><div class="stat-value text-sm" id="eth-mc-base-acc-pnl">--</div></div>
+        <div class="col-span-2 border-t border-surface-700/30 pt-2">
+          <div class="stat-label">KO Probability</div>
+          <div class="stat-value text-sm text-accent-amber" id="eth-mc-base-ko">--</div>
+        </div>
+      </div>
+    </div>
+    <div class="card p-5 glow-green">
+      <div class="flex items-center justify-between mb-3">
+        <span class="scenario-tag bg-accent-green/10 text-accent-green">BULLISH</span>
+        <span class="text-xs font-mono text-gray-500">25% prob</span>
+      </div>
+      <div class="text-xs font-mono text-gray-500 mb-3">$3,000 — $5,000 range</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><div class="stat-label">DCA ETH</div><div class="stat-value text-sm text-white" id="eth-mc-bull-dca-eth">--</div></div>
+        <div><div class="stat-label">ACC ETH</div><div class="stat-value text-sm text-white" id="eth-mc-bull-acc-eth">--</div></div>
+        <div><div class="stat-label">DCA Avg Cost</div><div class="stat-value text-sm text-gray-300" id="eth-mc-bull-dca-cost">--</div></div>
+        <div><div class="stat-label">ACC Avg Cost</div><div class="stat-value text-sm text-gray-300" id="eth-mc-bull-acc-cost">--</div></div>
+        <div><div class="stat-label">DCA P&L</div><div class="stat-value text-sm" id="eth-mc-bull-dca-pnl">--</div></div>
+        <div><div class="stat-label">ACC P&L</div><div class="stat-value text-sm" id="eth-mc-bull-acc-pnl">--</div></div>
+        <div class="col-span-2 border-t border-surface-700/30 pt-2">
+          <div class="stat-label">KO Probability</div>
+          <div class="stat-value text-sm text-accent-amber" id="eth-mc-bull-ko">--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card p-5 mb-4">
+    <div class="text-xs font-mono text-purple-400 uppercase tracking-widest font-bold mb-3">Probability-Weighted Expected Values</div>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div><div class="stat-label">Weighted DCA ETH</div><div class="stat-value text-lg text-white" id="eth-mc-wt-dca-eth">--</div></div>
+      <div><div class="stat-label">Weighted ACC ETH</div><div class="stat-value text-lg text-white" id="eth-mc-wt-acc-eth">--</div></div>
+      <div><div class="stat-label">Weighted DCA P&L</div><div class="stat-value text-lg" id="eth-mc-wt-dca-pnl">--</div></div>
+      <div><div class="stat-label">Weighted ACC P&L</div><div class="stat-value text-lg" id="eth-mc-wt-acc-pnl">--</div></div>
+      <div><div class="stat-label">ACC Advantage</div><div class="stat-value text-lg" id="eth-mc-wt-advantage">--</div></div>
+    </div>
+  </div>
+  <div class="card p-5">
+    <div style="position:relative;height:300px"><canvas id="eth-comparison-chart"></canvas></div>
+  </div>
+</section>
+
+<!-- ETH Section 4: Scenario Visualization -->
+<section id="eth-scenario-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">ETH Scenario Price Paths</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+  </div>
+  <div class="card p-5">
+    <div style="position:relative;height:400px"><canvas id="eth-scenario-chart"></canvas></div>
+  </div>
+</section>
+
+<!-- ETH Section 5: Existing Position Strategy -->
+<section id="eth-position-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">ETH Position Strategy</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card p-5">
+      <div class="text-xs font-mono text-purple-400 uppercase tracking-widest font-bold mb-4">Hold Analysis — P&L at Target Prices</div>
+      <div style="position:relative;height:280px"><canvas id="eth-hold-chart"></canvas></div>
+      <div class="mt-4 text-xs font-mono text-gray-500" id="eth-hold-note">Break-even at $2,100</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs font-mono text-purple-400 uppercase tracking-widest font-bold mb-4">Range Trading Analysis</div>
+      <div class="space-y-3 mb-4">
+        <div class="grid grid-cols-3 gap-3">
+          <div><div class="stat-label mb-1">Sell Price</div><input type="number" id="eth-rt-sell" class="input-field text-xs" value="2800" onchange="ethUpdatePositionStrategy()"></div>
+          <div><div class="stat-label mb-1">Buy Price</div><input type="number" id="eth-rt-buy" class="input-field text-xs" value="1800" onchange="ethUpdatePositionStrategy()"></div>
+          <div><div class="stat-label mb-1"># Round Trips</div><input type="number" id="eth-rt-trades" class="input-field text-xs" value="3" min="1" max="20" onchange="ethUpdatePositionStrategy()"></div>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <div class="bg-surface-950 rounded-lg p-3 border border-accent-green/10">
+          <div class="flex justify-between"><span class="stat-label">Profit Per Round Trip</span><span class="stat-value text-sm text-accent-green" id="eth-rt-profit-per">--</span></div>
+        </div>
+        <div class="bg-surface-950 rounded-lg p-3 border border-accent-green/10">
+          <div class="flex justify-between"><span class="stat-label">Total Profit (All Trips)</span><span class="stat-value text-sm text-accent-green" id="eth-rt-total-profit">--</span></div>
+        </div>
+        <div class="bg-surface-950 rounded-lg p-3 border border-accent-green/10">
+          <div class="flex justify-between"><span class="stat-label">Additional ETH from Profits</span><span class="stat-value text-sm text-white" id="eth-rt-extra-eth">--</span></div>
+        </div>
+        <div class="bg-surface-950 rounded-lg p-3 border border-accent-amber/10">
+          <div class="flex justify-between"><span class="stat-label">Effective New Avg Cost</span><span class="stat-value text-sm text-accent-amber" id="eth-rt-new-avg">--</span></div>
+        </div>
+        <div class="bg-surface-950 rounded-lg p-3 border border-accent-red/10">
+          <div class="flex justify-between"><span class="stat-label">Missed Upside Risk (if ETH hits $5K)</span><span class="stat-value text-sm text-accent-red" id="eth-rt-missed">--</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ETH Section 6: Decision Summary -->
+<section id="eth-decision-section">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-sm font-mono font-bold text-gray-400 uppercase tracking-widest">ETH Decision Summary</h2>
+    <div class="flex-1 h-px bg-surface-700/50"></div>
+  </div>
+  <div class="recommendation-card rounded-xl p-6" id="eth-recommendation-panel" style="border-color:#a855f730">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div>
+        <div class="text-xs font-mono text-purple-400 uppercase tracking-widest font-bold mb-3">Q1: DCA or Accumulator?</div>
+        <div id="eth-rec-q1" class="text-sm text-gray-300 leading-relaxed">Run the Monte Carlo simulation to generate recommendations.</div>
+      </div>
+      <div>
+        <div class="text-xs font-mono text-purple-400 uppercase tracking-widest font-bold mb-3">Q2: Hold or Trade ETH?</div>
+        <div id="eth-rec-q2" class="text-sm text-gray-300 leading-relaxed">--</div>
+      </div>
+      <div>
+        <div class="text-xs font-mono text-purple-400 uppercase tracking-widest font-bold mb-3">Q3: Risk Assessment</div>
+        <div id="eth-rec-q3" class="text-sm text-gray-300 leading-relaxed">--</div>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-5 border-t border-surface-700/30">
+      <div><div class="stat-label">Weighted KO Prob</div><div class="stat-value text-lg" id="eth-rec-ko-prob">--</div></div>
+      <div><div class="stat-label">Margin Call Risk</div><div class="stat-value text-lg" id="eth-rec-margin-risk">--</div></div>
+      <div><div class="stat-label">Suggested Allocation</div><div class="stat-value text-lg text-purple-400" id="eth-rec-allocation">--</div></div>
+      <div><div class="stat-label">Preferred Variant</div><div class="stat-value text-lg text-white" id="eth-rec-variant">--</div></div>
+    </div>
+  </div>
+</section>
+
 </main>
 
 <footer class="border-t border-surface-700/30 mt-12">
   <div class="max-w-[1600px] mx-auto px-6 py-4 flex justify-between items-center">
-    <span class="text-xs text-gray-600 font-mono">BTC/ACC Strategy Engine v1.0</span>
+    <span class="text-xs text-gray-600 font-mono">CRYPTO/ACC Strategy Engine v2.0</span>
     <span class="text-xs text-gray-600 font-mono">Not financial advice. Simulation results are illustrative.</span>
   </div>
 </footer>
@@ -668,6 +1004,33 @@ const STATE = {
   },
   calculator: { variant: 'standard', selectedRow: 13, freq: 'weekly' },
   mcResults: null,
+  // ── ETH STATE ──
+  ethPortfolio: { ethHeld: 0, avgCost: 2100, cash: 500000, spotPrice: 2100 },
+  ethTermSheets: {
+    guaranteed: [
+      { row:1,  tenor:3,  strikePct:89.08, koPct:110, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:2,  tenor:3,  strikePct:89.87, koPct:120, marginPct:45, gWeeks:4, sWeeks:1 },
+      { row:3,  tenor:6,  strikePct:82.05, koPct:110, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:4,  tenor:6,  strikePct:82.81, koPct:120, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:5,  tenor:6,  strikePct:84.73, koPct:130, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:6,  tenor:6,  strikePct:86.60, koPct:140, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:7,  tenor:9,  strikePct:76.76, koPct:110, marginPct:35, gWeeks:4, sWeeks:1 },
+      { row:8,  tenor:9,  strikePct:77.43, koPct:120, marginPct:35, gWeeks:4, sWeeks:1 },
+      { row:9,  tenor:9,  strikePct:79.43, koPct:130, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:10, tenor:9,  strikePct:81.44, koPct:140, marginPct:40, gWeeks:4, sWeeks:1 },
+      { row:11, tenor:12, strikePct:72.46, koPct:110, marginPct:35, gWeeks:4, sWeeks:1 },
+      { row:12, tenor:12, strikePct:73.04, koPct:120, marginPct:35, gWeeks:4, sWeeks:1 },
+      { row:13, tenor:12, strikePct:75.02, koPct:130, marginPct:35, gWeeks:4, sWeeks:1 },
+      { row:14, tenor:12, strikePct:77.07, koPct:140, marginPct:35, gWeeks:4, sWeeks:1 },
+    ],
+  },
+  ethScenarios: {
+    bearish:  { probability: 0.30, rangeLow: 1200, rangeHigh: 1800, midpoint: 1500 },
+    base:     { probability: 0.45, rangeLow: 2000, rangeHigh: 2800, midpoint: 2400 },
+    bullish:  { probability: 0.25, rangeLow: 3000, rangeHigh: 5000, midpoint: 4000 },
+  },
+  ethCalculator: { variant: 'guaranteed', selectedRow: 11, freq: 'weekly' },
+  ethMcResults: null,
 };
 
 // ═══════════════════════════════════════════════
@@ -684,7 +1047,7 @@ const pnlColor = n => n >= 0 ? '#00e89d' : '#ff3b5c';
 // ═══════════════════════════════════════════════
 async function fetchLivePrice() {
   try {
-    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true');
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
     const data = await res.json();
     const price = data.bitcoin.usd;
     const change = data.bitcoin.usd_24h_change;
@@ -696,12 +1059,51 @@ async function fetchLivePrice() {
     const changeEl = document.getElementById('header-change');
     changeEl.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
     changeEl.style.color = change >= 0 ? '#00e89d' : '#ff3b5c';
+    // ETH
+    if (data.ethereum) {
+      const ethPrice = data.ethereum.usd;
+      const ethChange = data.ethereum.usd_24h_change;
+      STATE.ethPortfolio.spotPrice = ethPrice;
+      document.getElementById('eth-spot-input').value = '';
+      document.getElementById('eth-spot-input').placeholder = Math.round(ethPrice).toLocaleString();
+      document.getElementById('eth-spot-slider').value = ethPrice;
+      document.getElementById('eth-header-price').textContent = fmtUSD(ethPrice);
+      const ethChangeEl = document.getElementById('eth-header-change');
+      ethChangeEl.textContent = (ethChange >= 0 ? '+' : '') + ethChange.toFixed(2) + '%';
+      ethChangeEl.style.color = ethChange >= 0 ? '#00e89d' : '#ff3b5c';
+    }
     document.getElementById('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
     updateAll();
+    ethUpdateAll();
   } catch(e) {
     document.getElementById('header-price').textContent = fmtUSD(STATE.portfolio.spotPrice);
+    document.getElementById('eth-header-price').textContent = fmtUSD(STATE.ethPortfolio.spotPrice);
     document.getElementById('last-updated').textContent = 'API error — using default';
     updateAll();
+    ethUpdateAll();
+  }
+}
+
+async function fetchEthPrice() {
+  try {
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd&include_24hr_change=true');
+    const data = await res.json();
+    const ethPrice = data.ethereum.usd;
+    const ethChange = data.ethereum.usd_24h_change;
+    STATE.ethPortfolio.spotPrice = ethPrice;
+    document.getElementById('eth-spot-input').value = '';
+    document.getElementById('eth-spot-input').placeholder = Math.round(ethPrice).toLocaleString();
+    document.getElementById('eth-spot-slider').value = ethPrice;
+    document.getElementById('eth-header-price').textContent = fmtUSD(ethPrice);
+    const ethChangeEl = document.getElementById('eth-header-change');
+    ethChangeEl.textContent = (ethChange >= 0 ? '+' : '') + ethChange.toFixed(2) + '%';
+    ethChangeEl.style.color = ethChange >= 0 ? '#00e89d' : '#ff3b5c';
+    document.getElementById('last-updated').textContent = 'ETH Updated: ' + new Date().toLocaleTimeString();
+    ethUpdateAll();
+  } catch(e) {
+    document.getElementById('eth-header-price').textContent = fmtUSD(STATE.ethPortfolio.spotPrice);
+    document.getElementById('last-updated').textContent = 'ETH API error — using default';
+    ethUpdateAll();
   }
 }
 
@@ -774,6 +1176,14 @@ function onParamEdit() {
 // ═══════════════════════════════════════════════
 // PORTFOLIO CALCULATIONS
 // ═══════════════════════════════════════════════
+function onPortfolioEdit() {
+  const btc = parseFloat(document.getElementById('btc-held-input').value);
+  const avg = parseFloat(document.getElementById('avg-cost-input').value);
+  if (btc >= 0 && !isNaN(btc)) STATE.portfolio.btcHeld = btc;
+  if (avg > 0 && !isNaN(avg)) STATE.portfolio.avgCost = avg;
+  updateAll();
+}
+
 function updatePortfolio() {
   const { btcHeld, avgCost, cash, spotPrice } = STATE.portfolio;
   const costBasis = btcHeld * avgCost;
@@ -781,6 +1191,7 @@ function updatePortfolio() {
   const pnl = currentVal - costBasis;
   const pnlPct = pnl / costBasis;
 
+  document.getElementById('cost-basis').textContent = fmtUSD(costBasis);
   document.getElementById('current-value').textContent = fmtUSD(currentVal);
   document.getElementById('current-value').style.color = pnlColor(pnl);
   document.getElementById('unrealized-pnl').textContent = fmtPnL(pnl);
@@ -1270,6 +1681,525 @@ function renderRecommendation() {
 }
 
 // ═══════════════════════════════════════════════
+// ETH TERM SHEET HELPERS
+// ═══════════════════════════════════════════════
+function ethGetSheets() { return STATE.ethTermSheets[STATE.ethCalculator.variant]; }
+function ethGetSelectedTerm() {
+  return ethGetSheets().find(t => t.row === STATE.ethCalculator.selectedRow);
+}
+
+function ethPopulateTermSelect() {
+  const sel = document.getElementById('eth-term-select');
+  sel.innerHTML = '';
+  ethGetSheets().forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.row;
+    opt.textContent = `${t.tenor}M | Strike ${t.strikePct.toFixed(2)}% | KO ${t.koPct}%`;
+    if (t.row === STATE.ethCalculator.selectedRow) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function ethSetVariant(v) {
+  STATE.ethCalculator.variant = v;
+  document.getElementById('eth-btn-guaranteed').classList.toggle('active', v === 'guaranteed');
+  const old = ethGetSelectedTerm();
+  if (!old) STATE.ethCalculator.selectedRow = ethGetSheets()[0].row;
+  ethPopulateTermSelect();
+  ethSyncEditFields();
+  ethUpdateAll();
+}
+
+function ethSetFreq(f) {
+  STATE.ethCalculator.freq = f;
+  document.getElementById('eth-btn-weekly').classList.toggle('active', f === 'weekly');
+  document.getElementById('eth-btn-daily').classList.toggle('active', f === 'daily');
+  ethUpdateAll();
+}
+
+function ethOnTermChange() {
+  STATE.ethCalculator.selectedRow = parseInt(document.getElementById('eth-term-select').value);
+  ethSyncEditFields();
+  ethUpdateAll();
+}
+
+function ethSyncEditFields() {
+  const t = ethGetSelectedTerm();
+  if (!t) return;
+  document.getElementById('eth-edit-strike-pct').value = t.strikePct;
+  document.getElementById('eth-edit-ko-pct').value = t.koPct;
+  document.getElementById('eth-edit-margin-pct').value = t.marginPct;
+}
+
+function ethOnParamEdit() {
+  const t = ethGetSelectedTerm();
+  if (!t) return;
+  t.strikePct = parseFloat(document.getElementById('eth-edit-strike-pct').value) || t.strikePct;
+  t.koPct = parseFloat(document.getElementById('eth-edit-ko-pct').value) || t.koPct;
+  t.marginPct = parseFloat(document.getElementById('eth-edit-margin-pct').value) || t.marginPct;
+  ethUpdateAll();
+}
+
+// ═══════════════════════════════════════════════
+// ETH PORTFOLIO CALCULATIONS
+// ═══════════════════════════════════════════════
+function ethOnPortfolioEdit() {
+  const eth = parseFloat(document.getElementById('eth-held-input').value);
+  const avg = parseFloat(document.getElementById('eth-avg-cost-input').value);
+  const cash = parseFloat(document.getElementById('eth-cash-input').value);
+  if (eth >= 0 && !isNaN(eth)) STATE.ethPortfolio.ethHeld = eth;
+  if (avg > 0 && !isNaN(avg)) STATE.ethPortfolio.avgCost = avg;
+  if (cash >= 0 && !isNaN(cash)) STATE.ethPortfolio.cash = cash;
+  ethUpdateAll();
+}
+
+function ethUpdatePortfolio() {
+  const { ethHeld, avgCost, cash, spotPrice } = STATE.ethPortfolio;
+  const costBasis = ethHeld * avgCost;
+  const currentVal = ethHeld * spotPrice;
+  const pnl = currentVal - costBasis;
+  const pnlPct = costBasis > 0 ? pnl / costBasis : 0;
+
+  document.getElementById('eth-cost-basis').textContent = fmtUSD(costBasis);
+  document.getElementById('eth-current-value').textContent = fmtUSD(currentVal);
+  document.getElementById('eth-current-value').style.color = ethHeld > 0 ? pnlColor(pnl) : '#e2e8f0';
+  document.getElementById('eth-unrealized-pnl').textContent = ethHeld > 0 ? fmtPnL(pnl) : '$0';
+  document.getElementById('eth-unrealized-pnl').style.color = ethHeld > 0 ? pnlColor(pnl) : '#e2e8f0';
+  document.getElementById('eth-unrealized-pnl-pct').textContent = ethHeld > 0 ? fmtPct(pnlPct) : '--';
+  document.getElementById('eth-unrealized-pnl-pct').style.color = ethHeld > 0 ? pnlColor(pnl) : '#6b7280';
+  document.getElementById('eth-total-portfolio').textContent = fmtUSD(currentVal + cash);
+  document.getElementById('eth-spot-slider-val').textContent = fmtUSD(spotPrice);
+}
+
+// ═══════════════════════════════════════════════
+// ETH ACCUMULATOR CALCULATIONS
+// ═══════════════════════════════════════════════
+const fmtETH = n => n.toFixed(2);
+
+function ethCalcAccumulator() {
+  const t = ethGetSelectedTerm();
+  if (!t) return null;
+  const spot = STATE.ethPortfolio.spotPrice;
+  const notional = parseFloat(document.getElementById('eth-notional-input').value) || 500000;
+
+  const strikePrice = spot * (t.strikePct / 100);
+  const koPrice = spot * (t.koPct / 100);
+  const tenorWeeks = Math.round(t.tenor * 4.33);
+  const numObs = STATE.ethCalculator.freq === 'weekly' ? tenorWeeks : tenorWeeks * 5;
+  const notionalPerPeriod = notional / numObs;
+  const ethPerPeriod = notionalPerPeriod / strikePrice;
+  const totalEthNormal = ethPerPeriod * numObs;
+  const totalEth2x = ethPerPeriod * 2 * numObs;
+  const totalCost2x = notional * 2;
+  const marginRequired = (t.marginPct / 100) * (2 * notional);
+  const discount = 1 - (strikePrice / spot);
+  const gWeeks = t.gWeeks || 0;
+  const guaranteedPeriods = STATE.ethCalculator.freq === 'weekly' ? gWeeks : gWeeks * 5;
+  const guaranteedEth = ethPerPeriod * guaranteedPeriods;
+
+  return { term: t, strikePrice, koPrice, numObs, notionalPerPeriod, ethPerPeriod,
+           totalEthNormal, totalEth2x, totalCost2x, marginRequired, discount,
+           guaranteedPeriods, guaranteedEth, notional, tenorWeeks };
+}
+
+function ethUpdateAccumulator() {
+  const a = ethCalcAccumulator();
+  if (!a) return;
+  document.getElementById('eth-acc-strike').textContent = fmtUSD(a.strikePrice);
+  document.getElementById('eth-acc-ko').textContent = fmtUSD(a.koPrice);
+  document.getElementById('eth-acc-discount').textContent = (a.discount * 100).toFixed(2) + '%';
+  document.getElementById('eth-acc-margin').textContent = fmtUSD(a.marginRequired);
+  document.getElementById('eth-acc-normal').textContent = fmtETH(a.totalEthNormal);
+  document.getElementById('eth-acc-observations').textContent = a.numObs + ' periods';
+  document.getElementById('eth-acc-per-period').textContent = fmtETH(a.ethPerPeriod);
+  document.getElementById('eth-acc-2x').textContent = fmtETH(a.totalEth2x);
+  document.getElementById('eth-acc-cost-2x').textContent = fmtUSD(a.totalCost2x);
+  document.getElementById('eth-acc-eff-cost').textContent = fmtUSD(a.strikePrice);
+  document.getElementById('eth-acc-guaranteed-eth').textContent = fmtETH(a.guaranteedEth);
+  document.getElementById('eth-acc-guaranteed-weeks').textContent = (a.term.gWeeks || 4) + ' weeks';
+}
+
+// ═══════════════════════════════════════════════
+// ETH MONTE CARLO ENGINE
+// ═══════════════════════════════════════════════
+function ethRunMonteCarlo() {
+  const acc = ethCalcAccumulator();
+  if (!acc) return;
+  const S0 = STATE.ethPortfolio.spotPrice;
+  const numPaths = 1000;
+  const results = {};
+
+  for (const [key, scenario] of Object.entries(STATE.ethScenarios)) {
+    const T = acc.term.tenor / 12;
+    const { mu, sigma } = calibrateScenario(S0, scenario, T);
+    const rng = makeRNG(99 + key.charCodeAt(0));
+    const accRes = [], dcaRes = [];
+
+    for (let p = 0; p < numPaths; p++) {
+      const path = generatePricePath(S0, mu, sigma, T, acc.numObs, rng);
+      const terminal = path[path.length - 1];
+
+      const ar = simulateAccumulator(path, acc.strikePrice, acc.koPrice, acc.notionalPerPeriod, true, acc.guaranteedPeriods);
+      ar.terminalValue = ar.totalBtc * terminal;
+      ar.pnl = ar.terminalValue - ar.totalSpent;
+      accRes.push(ar);
+
+      const dr = simulateDCA(path, acc.notionalPerPeriod, acc.numObs);
+      dr.terminalValue = dr.totalBtc * terminal;
+      dr.pnl = dr.terminalValue - dr.totalSpent;
+      dcaRes.push(dr);
+    }
+
+    const agg = arr => {
+      const tokens = arr.map(r => r.totalBtc);
+      const pnls = arr.map(r => r.pnl);
+      const costs = arr.map(r => r.avgCost);
+      const avg = a => a.reduce((s,v)=>s+v,0)/a.length;
+      return { avgEth: avg(tokens), avgPnl: avg(pnls), avgCost: avg(costs) };
+    };
+
+    results[key] = {
+      probability: scenario.probability,
+      acc: { ...agg(accRes), koProbability: accRes.filter(r=>r.koTriggered).length / numPaths },
+      dca: agg(dcaRes),
+    };
+  }
+
+  STATE.ethMcResults = results;
+  ethRenderMCResults();
+  ethRenderComparisonChart();
+  ethRenderRecommendation();
+}
+
+function ethRenderMCResults() {
+  const r = STATE.ethMcResults;
+  if (!r) return;
+  const scenarios = [
+    { key:'bearish', prefix:'bear' },
+    { key:'base', prefix:'base' },
+    { key:'bullish', prefix:'bull' },
+  ];
+  let wtDcaEth=0, wtAccEth=0, wtDcaPnl=0, wtAccPnl=0;
+  for (const { key, prefix } of scenarios) {
+    const d = r[key];
+    document.getElementById(`eth-mc-${prefix}-dca-eth`).textContent = fmtETH(d.dca.avgEth);
+    document.getElementById(`eth-mc-${prefix}-acc-eth`).textContent = fmtETH(d.acc.avgEth);
+    document.getElementById(`eth-mc-${prefix}-dca-cost`).textContent = fmtUSD(d.dca.avgCost);
+    document.getElementById(`eth-mc-${prefix}-acc-cost`).textContent = fmtUSD(d.acc.avgCost);
+    const dcaPnlEl = document.getElementById(`eth-mc-${prefix}-dca-pnl`);
+    dcaPnlEl.textContent = fmtPnL(d.dca.avgPnl); dcaPnlEl.style.color = pnlColor(d.dca.avgPnl);
+    const accPnlEl = document.getElementById(`eth-mc-${prefix}-acc-pnl`);
+    accPnlEl.textContent = fmtPnL(d.acc.avgPnl); accPnlEl.style.color = pnlColor(d.acc.avgPnl);
+    document.getElementById(`eth-mc-${prefix}-ko`).textContent = (d.acc.koProbability * 100).toFixed(1) + '%';
+    wtDcaEth += d.probability * d.dca.avgEth;
+    wtAccEth += d.probability * d.acc.avgEth;
+    wtDcaPnl += d.probability * d.dca.avgPnl;
+    wtAccPnl += d.probability * d.acc.avgPnl;
+  }
+  document.getElementById('eth-mc-wt-dca-eth').textContent = fmtETH(wtDcaEth);
+  document.getElementById('eth-mc-wt-acc-eth').textContent = fmtETH(wtAccEth);
+  const wdp = document.getElementById('eth-mc-wt-dca-pnl');
+  wdp.textContent = fmtPnL(wtDcaPnl); wdp.style.color = pnlColor(wtDcaPnl);
+  const wap = document.getElementById('eth-mc-wt-acc-pnl');
+  wap.textContent = fmtPnL(wtAccPnl); wap.style.color = pnlColor(wtAccPnl);
+  const adv = wtAccPnl - wtDcaPnl;
+  const advEl = document.getElementById('eth-mc-wt-advantage');
+  advEl.textContent = fmtPnL(adv); advEl.style.color = pnlColor(adv);
+}
+
+// ═══════════════════════════════════════════════
+// ETH CHARTS
+// ═══════════════════════════════════════════════
+let ethComparisonChart = null, ethScenarioChart = null, ethHoldChart = null;
+
+function ethRenderComparisonChart() {
+  const r = STATE.ethMcResults;
+  if (!r) return;
+  const ctx = document.getElementById('eth-comparison-chart');
+  if (ethComparisonChart) ethComparisonChart.destroy();
+  ethComparisonChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Bearish (30%)', 'Base Case (45%)', 'Bullish (25%)'],
+      datasets: [
+        { label: 'DCA — Avg P&L', data: [r.bearish.dca.avgPnl, r.base.dca.avgPnl, r.bullish.dca.avgPnl],
+          backgroundColor: '#3b82f680', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 },
+        { label: 'Accumulator — Avg P&L', data: [r.bearish.acc.avgPnl, r.base.acc.avgPnl, r.bullish.acc.avgPnl],
+          backgroundColor: '#a855f780', borderColor: '#a855f7', borderWidth: 1, borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#9CA3AF', font: chartDefaults.font } },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtUSD(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { ticks: { color: '#6b7280', font: chartDefaults.font }, grid: { color: '#1a1e2740' } },
+        y: { ticks: { color: '#6b7280', font: chartDefaults.font, callback: v => fmtUSD(v) }, grid: { color: '#1a1e2740' } }
+      }
+    }
+  });
+}
+
+function ethRenderScenarioChart() {
+  const acc = ethCalcAccumulator();
+  if (!acc) return;
+  const ctx = document.getElementById('eth-scenario-chart');
+  if (ethScenarioChart) ethScenarioChart.destroy();
+  const S0 = STATE.ethPortfolio.spotPrice;
+  const tenor = acc.term.tenor;
+  const T = tenor / 12;
+  const steps = tenor;
+  const months = Array.from({length: tenor+1}, (_, i) => {
+    const d = new Date(); d.setMonth(d.getMonth() + i);
+    return d.toLocaleDateString('en-US', {month:'short', year:'2-digit'});
+  });
+  function band(key) {
+    const sc = STATE.ethScenarios[key];
+    const { mu, sigma } = calibrateScenario(S0, sc, T);
+    const rng = makeRNG(99 + key.charCodeAt(0));
+    const paths = [];
+    for (let p = 0; p < 200; p++) paths.push(generatePricePath(S0, mu, sigma, T, steps, rng));
+    const median=[], p10=[], p90=[];
+    for (let i = 0; i <= steps; i++) {
+      const vals = paths.map(p=>p[i]).sort((a,b)=>a-b);
+      p10.push(vals[Math.floor(vals.length*0.10)]);
+      median.push(vals[Math.floor(vals.length*0.50)]);
+      p90.push(vals[Math.floor(vals.length*0.90)]);
+    }
+    return { median, p10, p90 };
+  }
+  const bear = band('bearish'), base = band('base'), bull = band('bullish');
+  const ptOpts = { pointRadius: 0, borderWidth: 1.5, tension: 0.3 };
+  const bandOpts = { pointRadius: 0, borderWidth: 1, tension: 0.3, borderDash: [3,3] };
+  ethScenarioChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [
+        { label:'Bearish', data:bear.median, borderColor:'#ff3b5c', fill:false, ...ptOpts },
+        { label:'Bear P10', data:bear.p10, borderColor:'#ff3b5c30', fill:'+1', backgroundColor:'#ff3b5c08', ...bandOpts },
+        { label:'Bear P90', data:bear.p90, borderColor:'#ff3b5c30', fill:false, ...bandOpts },
+        { label:'Base Case', data:base.median, borderColor:'#3b82f6', fill:false, ...ptOpts },
+        { label:'Base P10', data:base.p10, borderColor:'#3b82f630', fill:'+1', backgroundColor:'#3b82f608', ...bandOpts },
+        { label:'Base P90', data:base.p90, borderColor:'#3b82f630', fill:false, ...bandOpts },
+        { label:'Bullish', data:bull.median, borderColor:'#00e89d', fill:false, ...ptOpts },
+        { label:'Bull P10', data:bull.p10, borderColor:'#00e89d30', fill:'+1', backgroundColor:'#00e89d08', ...bandOpts },
+        { label:'Bull P90', data:bull.p90, borderColor:'#00e89d30', fill:false, ...bandOpts },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: '#9CA3AF', font: chartDefaults.font,
+            filter: item => !item.text.includes('P10') && !item.text.includes('P90') }
+        },
+        annotation: {
+          annotations: {
+            strike: { type:'line', yMin:acc.strikePrice, yMax:acc.strikePrice, borderColor:'#ffb224', borderWidth:2, borderDash:[6,3],
+              label: { display:true, content:'Strike: '+fmtUSD(acc.strikePrice), color:'#ffb224', backgroundColor:'#08090cdd', font:{family:"'JetBrains Mono'",size:10}, position:'start' } },
+            ko: { type:'line', yMin:acc.koPrice, yMax:acc.koPrice, borderColor:'#ff3b5c', borderWidth:2, borderDash:[6,3],
+              label: { display:true, content:'KO: '+fmtUSD(acc.koPrice), color:'#ff3b5c', backgroundColor:'#08090cdd', font:{family:"'JetBrains Mono'",size:10}, position:'end' } },
+            spot: { type:'line', yMin:S0, yMax:S0, borderColor:'#6b7280', borderWidth:1, borderDash:[3,3],
+              label: { display:true, content:'Spot: '+fmtUSD(S0), color:'#6b7280', backgroundColor:'#08090cdd', font:{family:"'JetBrains Mono'",size:10}, position:'center' } },
+          }
+        },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtUSD(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { ticks:{color:'#6b7280',font:chartDefaults.font}, grid:{color:'#1a1e2740'} },
+        y: { ticks:{color:'#6b7280',font:chartDefaults.font,callback:v=>fmtUSD(v)}, grid:{color:'#1a1e2740'} }
+      }
+    }
+  });
+}
+
+function ethRenderHoldChart() {
+  const ctx = document.getElementById('eth-hold-chart');
+  if (ethHoldChart) ethHoldChart.destroy();
+  const { ethHeld, avgCost } = STATE.ethPortfolio;
+  const targets = [800,1000,1200,1400,1600,1800,2000,2100,2400,2800,3200,3600,4000,4500,5000];
+  const pnls = targets.map(p => ethHeld * (p - avgCost));
+  document.getElementById('eth-hold-note').textContent = `Break-even at ${fmtUSD(avgCost)} — ${ethHeld > 0 ? 'need ' + ((avgCost/STATE.ethPortfolio.spotPrice - 1)*100).toFixed(0) + '% from current spot' : 'no ETH position'}`;
+  ethHoldChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: targets.map(t => t >= 1000 ? (t/1000).toFixed(1)+'K' : '$'+t),
+      datasets: [{
+        label: ethHeld + ' ETH P&L',
+        data: pnls,
+        segment: { borderColor: ctx => ctx.p0.parsed.y < 0 && ctx.p1.parsed.y < 0 ? '#ff3b5c' : ctx.p0.parsed.y >= 0 && ctx.p1.parsed.y >= 0 ? '#00e89d' : '#ffb224' },
+        fill: { target:'origin', above:'#00e89d10', below:'#ff3b5c10' },
+        tension: 0.2, pointRadius: 3, pointBackgroundColor: pnls.map(p => p >= 0 ? '#00e89d' : '#ff3b5c'),
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        annotation: {
+          annotations: {
+            breakeven: { type:'line', yMin:0, yMax:0, borderColor:'#ffb22480', borderDash:[5,5], borderWidth:1,
+              label: { display:true, content:'Break-even: '+fmtUSD(avgCost), color:'#ffb224', backgroundColor:'#08090cdd', font:{family:"'JetBrains Mono'",size:10} } }
+          }
+        },
+        tooltip: { callbacks: { label: ctx => 'P&L: ' + fmtPnL(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { title:{display:true,text:'ETH Price',color:'#6b7280',font:chartDefaults.font}, ticks:{color:'#6b7280',font:chartDefaults.font}, grid:{color:'#1a1e2740'} },
+        y: { title:{display:true,text:'P&L (USD)',color:'#6b7280',font:chartDefaults.font}, ticks:{color:'#6b7280',font:chartDefaults.font,callback:v=>fmtUSD(v)}, grid:{color:'#1a1e2740'} }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// ETH POSITION STRATEGY
+// ═══════════════════════════════════════════════
+function ethUpdatePositionStrategy() {
+  const sell = parseFloat(document.getElementById('eth-rt-sell').value) || 2800;
+  const buy = parseFloat(document.getElementById('eth-rt-buy').value) || 1800;
+  const trades = parseInt(document.getElementById('eth-rt-trades').value) || 3;
+  const eth = STATE.ethPortfolio.ethHeld;
+
+  if (eth <= 0) {
+    document.getElementById('eth-rt-profit-per').textContent = 'No ETH position';
+    document.getElementById('eth-rt-total-profit').textContent = '--';
+    document.getElementById('eth-rt-extra-eth').textContent = '--';
+    document.getElementById('eth-rt-new-avg').textContent = '--';
+    document.getElementById('eth-rt-missed').textContent = '--';
+    return;
+  }
+
+  const profitPerTrade = (sell - buy) * eth;
+  const totalProfit = profitPerTrade * trades;
+  const extraEth = totalProfit / buy;
+  const newAvg = (STATE.ethPortfolio.avgCost * eth - totalProfit) / eth;
+  const missedUpside = (5000 - sell) * eth;
+
+  document.getElementById('eth-rt-profit-per').textContent = fmtUSD(profitPerTrade);
+  document.getElementById('eth-rt-total-profit').textContent = fmtUSD(totalProfit);
+  document.getElementById('eth-rt-extra-eth').textContent = fmtETH(extraEth) + ' ETH';
+  document.getElementById('eth-rt-new-avg').textContent = fmtUSD(Math.max(0, newAvg));
+  document.getElementById('eth-rt-missed').textContent = fmtUSD(missedUpside);
+}
+
+// ═══════════════════════════════════════════════
+// ETH RECOMMENDATION ENGINE
+// ═══════════════════════════════════════════════
+function ethRenderRecommendation() {
+  const r = STATE.ethMcResults;
+  if (!r) return;
+  const acc = ethCalcAccumulator();
+  if (!acc) return;
+
+  let wtDcaPnl=0, wtAccPnl=0, wtKo=0;
+  for (const [key, d] of Object.entries(r)) {
+    wtDcaPnl += d.probability * d.dca.avgPnl;
+    wtAccPnl += d.probability * d.acc.avgPnl;
+    wtKo += d.probability * d.acc.koProbability;
+  }
+
+  const advantage = wtAccPnl - wtDcaPnl;
+  const accPct = Math.min(60, Math.max(20, 40 + advantage / 20000)) / 100;
+  const marginOverHalf = acc.marginRequired > STATE.ethPortfolio.cash * 0.5;
+
+  let q1;
+  if (advantage > 0) {
+    q1 = `<span class="text-accent-green font-mono font-bold">ACCUMULATOR PREFERRED</span><br>
+    <span class="text-xs text-gray-400 mt-2 block">The ETH accumulator outperforms DCA by <span class="text-accent-green">${fmtUSD(advantage)}</span> on a probability-weighted basis.
+    Suggested split: <span class="text-white">${Math.round(accPct*100)}% Accumulator / ${Math.round((1-accPct)*100)}% DCA</span>
+    (${fmtUSD(acc.notional * accPct)} via accumulator, ${fmtUSD(acc.notional * (1-accPct))} via spot DCA).
+    The accumulator's strike discount of ${(acc.discount*100).toFixed(1)}% provides meaningful cost savings.</span>`;
+  } else {
+    q1 = `<span class="text-accent-blue font-mono font-bold">DCA PREFERRED</span><br>
+    <span class="text-xs text-gray-400 mt-2 block">DCA outperforms the ETH accumulator by <span class="text-accent-blue">${fmtUSD(Math.abs(advantage))}</span> probability-weighted.
+    The 2x leverage risk in bear scenarios and KO termination in bull scenarios erode the accumulator's strike discount advantage.</span>`;
+  }
+  document.getElementById('eth-rec-q1').innerHTML = q1;
+
+  const spot = STATE.ethPortfolio.spotPrice;
+  const ethHeld = STATE.ethPortfolio.ethHeld;
+  let q2;
+  if (ethHeld <= 0) {
+    q2 = `<span class="text-accent-cyan font-mono font-bold">NO EXISTING POSITION</span><br>
+    <span class="text-xs text-gray-400 mt-2 block">You don't currently hold ETH. Consider using the accumulator or DCA to build a position.
+    The accumulator provides a ${(acc.discount*100).toFixed(1)}% discount to spot, ideal for initiating a position with downside protection.</span>`;
+  } else if (spot < STATE.ethPortfolio.avgCost * 0.8) {
+    q2 = `<span class="text-accent-amber font-mono font-bold">HOLD — ACCUMULATION ZONE</span><br>
+    <span class="text-xs text-gray-400 mt-2 block">At ${fmtUSD(spot)}, you're well below your ${fmtUSD(STATE.ethPortfolio.avgCost)} break-even. Selling near support risks realizing losses.
+    Consider holding and using the accumulator to DCA into more ETH at discounted prices.</span>`;
+  } else {
+    q2 = `<span class="text-accent-cyan font-mono font-bold">CONSIDER RANGE TRADING</span><br>
+    <span class="text-xs text-gray-400 mt-2 block">At ${fmtUSD(spot)}, range trading between support and resistance levels could generate profits to reduce your cost basis.
+    Monitor key support at $1,800 and resistance at $2,800.</span>`;
+  }
+  document.getElementById('eth-rec-q2').innerHTML = q2;
+
+  const marginRisk = marginOverHalf ? 'HIGH' : 'LOW';
+  const marginRiskColor = marginOverHalf ? '#ff3b5c' : '#00e89d';
+  const q3 = `<span class="text-xs text-gray-400 block">
+  <span class="font-mono font-bold" style="color:${marginRiskColor}">Margin Call Risk: ${marginRisk}</span><br>
+  Required margin: ${fmtUSD(acc.marginRequired)} (${((acc.marginRequired/Math.max(1,STATE.ethPortfolio.cash))*100).toFixed(0)}% of allocated cash).<br><br>
+  In the <span class="text-accent-red">bearish scenario</span>, 2x forced buying would require ${fmtUSD(acc.notional * 2)} total — ${((acc.notional*2/Math.max(1,STATE.ethPortfolio.cash))*100).toFixed(0)}% of your ${fmtUSD(STATE.ethPortfolio.cash)} ETH cash allocation.<br><br>
+  <span class="font-mono font-bold text-white">Key risk</span>: ETH has higher volatility than BTC (~1.3-1.5x beta). The 2x leverage below strike compounds this risk.
+  Consider keeping at least 50% of ETH cash allocation as a reserve buffer.</span>`;
+  document.getElementById('eth-rec-q3').innerHTML = q3;
+
+  const koEl = document.getElementById('eth-rec-ko-prob');
+  koEl.textContent = (wtKo * 100).toFixed(1) + '%';
+  koEl.style.color = wtKo > 0.5 ? '#ffb224' : '#00e89d';
+
+  const mrEl = document.getElementById('eth-rec-margin-risk');
+  mrEl.textContent = marginRisk;
+  mrEl.style.color = marginRiskColor;
+
+  document.getElementById('eth-rec-allocation').textContent = `${Math.round(accPct*100)}/${Math.round((1-accPct)*100)}`;
+  document.getElementById('eth-rec-variant').textContent = 'Guaranteed (4W)';
+}
+
+// ═══════════════════════════════════════════════
+// ETH MASTER UPDATE
+// ═══════════════════════════════════════════════
+function ethUpdateAll() {
+  ethUpdatePortfolio();
+  ethUpdateAccumulator();
+  ethRenderScenarioChart();
+  ethRenderHoldChart();
+  ethUpdatePositionStrategy();
+  if (STATE.ethMcResults) {
+    ethRunMonteCarlo();
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ETH EVENT LISTENERS
+// ═══════════════════════════════════════════════
+document.getElementById('eth-spot-input').addEventListener('input', function() {
+  const v = parseFloat(this.value);
+  if (v > 0) {
+    STATE.ethPortfolio.spotPrice = v;
+    document.getElementById('eth-spot-slider').value = v;
+    ethUpdateAll();
+  }
+});
+
+document.getElementById('eth-spot-slider').addEventListener('input', function() {
+  STATE.ethPortfolio.spotPrice = parseFloat(this.value);
+  document.getElementById('eth-spot-input').value = '';
+  document.getElementById('eth-spot-input').placeholder = Math.round(STATE.ethPortfolio.spotPrice).toLocaleString();
+  ethUpdateAll();
+});
+
+document.getElementById('eth-notional-input').addEventListener('input', function() {
+  document.getElementById('eth-notional-slider').value = this.value;
+  ethUpdateAll();
+});
+
+// ═══════════════════════════════════════════════
 // MASTER UPDATE
 // ═══════════════════════════════════════════════
 function updateAll() {
@@ -1311,11 +2241,18 @@ document.getElementById('notional-input').addEventListener('input', function() {
 // INIT
 // ═══════════════════════════════════════════════
 (function init() {
+  // BTC init
   populateTermSelect();
   syncEditFields();
   document.getElementById('spot-slider').value = STATE.portfolio.spotPrice;
+  // ETH init
+  ethPopulateTermSelect();
+  ethSyncEditFields();
+  document.getElementById('eth-spot-slider').value = STATE.ethPortfolio.spotPrice;
+  // Fetch live prices (BTC + ETH) and update all
   fetchLivePrice();
   updateAll();
+  ethUpdateAll();
 })();
 </script>
 </body>
